@@ -6,7 +6,9 @@ import { focusActiveTerminalInput, getTerminalContent } from './terminal'
 export async function openTerminalWorkspaceRootLink(
   page: Page,
   testInfo: TestInfo,
-  rootPath: string
+  rootPath: string,
+  /** `open` Ctrl/Cmd-clicks, which opens a file link directly instead of its actions menu. */
+  click: 'actions' | 'open' = 'actions'
 ): Promise<{ x: number; y: number }> {
   await focusActiveTerminalInput(page)
   const readyMarker = `ROOT_LINK_PRINTED_${Date.now()}`
@@ -63,9 +65,21 @@ export async function openTerminalWorkspaceRootLink(
   }
   await page.mouse.move(target.current.x, target.current.y)
   await expect(
-    page.locator('.pane-link-tooltip:visible').filter({ hasText: `${rootPath} (Click for actions` })
+    page
+      .locator('.pane-link-tooltip:visible')
+      .filter({ hasText: click === 'actions' ? `${rootPath} (Click for actions` : `${rootPath} (` })
   ).toBeVisible()
   await page.screenshot({ path: testInfo.outputPath('managed-terminal-root-link-hover.png') })
-  await page.mouse.click(target.current.x, target.current.y)
+  if (click === 'actions') {
+    await page.mouse.click(target.current.x, target.current.y)
+    return target.current
+  }
+  const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
+  await page.keyboard.down(modifier)
+  try {
+    await page.mouse.click(target.current.x, target.current.y)
+  } finally {
+    await page.keyboard.up(modifier)
+  }
   return target.current
 }

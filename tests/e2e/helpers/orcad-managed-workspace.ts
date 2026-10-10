@@ -129,6 +129,13 @@ export async function openTerminalTab(page: Page, worktreeId: string): Promise<s
     )
     .not.toBeNull()
   await waitForPane(page, created!)
+  // Keys typed before the shell's first prompt can be lost, as they would be for a user too.
+  await expect
+    .poll(async () => (await readPairedPaneContent(page, created!)).trimEnd(), {
+      timeout: 60_000,
+      message: `the shell in ${created} never printed a prompt`
+    })
+    .toMatch(/[#$]$/)
   return created!
 }
 
