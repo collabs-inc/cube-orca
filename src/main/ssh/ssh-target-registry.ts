@@ -1,7 +1,13 @@
 import type { SshConnectionStore } from './ssh-connection-store'
 import type { SshChannelMultiplexer } from './ssh-channel-multiplexer'
 import type { SshConnectionManager } from './ssh-connection-manager'
-import type { SshConnectionState, SshTarget } from '../../shared/ssh-types'
+import type {
+  SshConnectionState,
+  SshTarget,
+  SshTargetAddResult,
+  SshTargetCreateInput,
+  SshTargetUpdateInput
+} from '../../shared/ssh-types'
 
 /**
  * The SSH target/state registry, split out of `ipc/ssh.ts`.
@@ -59,6 +65,26 @@ export function listRegisteredSshTargets(): SshTarget[] {
 /** Removed-target id → last known label, for ghost-host display on paired clients. */
 export function listRegisteredRemovedSshTargetLabels(): Record<string, string> {
   return sshStore?.listRemovedTargetLabels() ?? {}
+}
+
+/** Add/update/remove with the same rules the desktop's SSH settings use. */
+export type SshTargetMutations = {
+  add: (target: SshTargetCreateInput) => SshTargetAddResult
+  update: (targetId: string, updates: SshTargetUpdateInput) => SshTarget | null
+  remove: (targetId: string) => Promise<void>
+}
+
+let registeredSshTargetMutations: SshTargetMutations | null = null
+
+export function setSshTargetMutations(mutations: SshTargetMutations | null): void {
+  registeredSshTargetMutations = mutations
+}
+
+export function getRegisteredSshTargetMutations(): SshTargetMutations {
+  if (!registeredSshTargetMutations) {
+    throw new Error('ssh_handlers_not_registered')
+  }
+  return registeredSshTargetMutations
 }
 
 let registeredGetActiveMultiplexer:

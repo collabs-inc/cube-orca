@@ -76,6 +76,20 @@ describe('RuntimeProjectHostSetupController host routing', () => {
     expect(result.repo.id).toBe(remoteRepo.id)
   })
 
+  it('adds a new project from a folder on an SSH target, never as a local path', async () => {
+    const { controller, addRepo, addRemoteRepo } = makeController()
+
+    const repo = await controller.addSshRepo({ connectionId: TARGET_ID, remotePath: REMOTE_PATH })
+
+    expect(addRemoteRepo).toHaveBeenCalledWith({
+      connectionId: TARGET_ID,
+      remotePath: REMOTE_PATH,
+      kind: 'git'
+    })
+    expect(addRepo).not.toHaveBeenCalled()
+    expect(repo.connectionId).toBe(TARGET_ID)
+  })
+
   it('decodes a percent-encoded SSH target back to its connection id', async () => {
     const { controller, addRemoteRepo, projectId } = makeController()
 

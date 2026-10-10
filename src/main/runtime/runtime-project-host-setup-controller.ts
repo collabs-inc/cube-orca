@@ -121,6 +121,19 @@ export class RuntimeProjectHostSetupController {
     return this.completeSetup(args, repo, !knownRepoIds.has(repo.id))
   }
 
+  /** Registers an existing folder on one of this host's SSH targets as a new project. */
+  addSshRepo(args: {
+    connectionId: string
+    remotePath: string
+    displayName?: string
+    kind?: 'folder' | 'git'
+  }): Promise<Repo> {
+    if (!this.deps.getStore()) {
+      throw new Error('runtime_unavailable')
+    }
+    return this.deps.addRemoteRepo({ ...args, kind: args.kind === 'folder' ? 'folder' : 'git' })
+  }
+
   async setupClone(args: ProjectHostSetupCloneArgs): Promise<ProjectHostSetupResult> {
     assertCloneHostIsSupported(args.hostId)
     const knownRepoIds = new Set(this.deps.listRepos().map((repo) => repo.id))

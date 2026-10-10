@@ -17,6 +17,7 @@ import { quitTeardownStartGate } from '../quit-teardown-start-gate'
 import {
   getSshTargetRegistryStore,
   setSshConnectionManagerResolver,
+  setSshTargetMutations,
   setSshTargetRegistryHandlers,
   setSshTargetRegistryStore
 } from '../ssh/ssh-target-registry'
@@ -270,6 +271,7 @@ export async function resetSshHandlerStateForTests(): Promise<void> {
   setSshTargetRegistryStore(null)
   setPersistedStore(null)
   setSshTargetRegistryHandlers({ connect: null, getState: null })
+  setSshTargetMutations(null)
   setCurrentGetMainWindow(() => null)
   setCurrentRuntime(undefined)
 }
