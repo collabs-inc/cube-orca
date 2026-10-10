@@ -120,7 +120,7 @@ export class ProfilePreferences {
                 Reflect.deleteProperty(restoredSettings, key)
               }
             }
-            if (options.notifyListeners && runtime.state.settings !== next) {
+            if (options.notifyListeners && updateKeys.size > 0) {
               rollbackKeys = [...updateKeys]
             }
             runtime.state.settings = restoredSettings

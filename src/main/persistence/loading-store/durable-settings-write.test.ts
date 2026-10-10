@@ -47,7 +47,7 @@ it('waits for the SQLite write before returning or publishing the preference', a
   )
 })
 
-it('rejects a failed disk write and rolls back without publishing the preference', async () => {
+it('rejects a failed disk write and publishes only the restored preference', async () => {
   const { store, authority, readState } = await createWorkerMaintenanceFixture()
   const previous = store.getSettings().alwaysForceDeleteWorktrees
   vi.spyOn(authority, 'writeSerializedDomains').mockRejectedValueOnce(new Error('Disk full'))
@@ -58,7 +58,11 @@ it('rejects a failed disk write and rolls back without publishing the preference
   ).rejects.toThrow('Disk full')
   expect(store.getSettings().alwaysForceDeleteWorktrees).toBe(previous)
   expect(readState().settings.alwaysForceDeleteWorktrees).toBe(previous)
-  expect(onChanged).not.toHaveBeenCalled()
+  expect(onChanged).toHaveBeenCalledExactlyOnceWith(
+    { alwaysForceDeleteWorktrees: previous },
+    expect.objectContaining({ alwaysForceDeleteWorktrees: previous }),
+    undefined
+  )
 })
 
 it('rolls back the preference while retaining unrelated concurrent settings edits', async () => {
