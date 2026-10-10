@@ -176,11 +176,13 @@ export function useWorkspaceIdentityState(input: WorkspaceIdentityStateInput) {
   )
 
   // Why: for a repo on an SSH host or runtime env, read the per-host agent list so the dialog shows the host's installed agents, not local.
-  const connectionId = selectedRepoConnectionId
+  const runtimeEnvironmentId = selectedRepoSettings?.activeRuntimeEnvironmentId?.trim() || null
+
+  // Why: a server-owned repo's connectionId names that server's own SSH target, which this client
+  // cannot dial; the server answers for it.
+  const connectionId = runtimeEnvironmentId ? null : selectedRepoConnectionId
 
   const isRemote = typeof connectionId === 'string'
-
-  const runtimeEnvironmentId = selectedRepoSettings?.activeRuntimeEnvironmentId?.trim() || null
 
   const detectedAgentList = useAppStore((s) => {
     if (isRemote) {

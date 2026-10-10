@@ -8,7 +8,11 @@ const mocks = vi.hoisted(() => {
   return { state, connectRuntimeEnvironmentSshTarget: vi.fn() }
 })
 
-vi.mock('@/store', () => ({ useAppStore: { getState: () => mocks.state } }))
+vi.mock('@/store', () => ({
+  useAppStore: Object.assign((select: (state: unknown) => unknown) => select(mocks.state), {
+    getState: () => mocks.state
+  })
+}))
 vi.mock('@/runtime/runtime-environment-ssh-state', () => ({
   connectRuntimeEnvironmentSshTarget: mocks.connectRuntimeEnvironmentSshTarget,
   hydrateRuntimeEnvironmentSshState: vi.fn(async () => {})
@@ -84,5 +88,34 @@ describe('connecting the SSH target of the selected project', () => {
 
     expect(sshConnect).toHaveBeenCalledWith({ targetId: 'ssh-mine' })
     expect(mocks.connectRuntimeEnvironmentSshTarget).not.toHaveBeenCalled()
+  })
+})
+
+describe("agents for a project on a paired server's SSH host", () => {
+  it("are detected by the server, never by probing this client's SSH connections", async () => {
+    mocks.state = {
+      remoteDetectedAgentIds: {},
+      runtimeDetectedAgentIds: {},
+      detectedAgentIds: null,
+      ensureDetectedAgents: vi.fn(),
+      ensureRemoteDetectedAgents: vi.fn(),
+      ensureRuntimeDetectedAgents: vi.fn()
+    }
+    const { useWorkspaceIdentityState } = await import('./workspace-identity-state')
+
+    const { result } = renderHook(() =>
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: identity state reads only these fields; the rest are inert.
+      useWorkspaceIdentityState({
+        persistDraft: false,
+        newWorkspaceDraft: null,
+        selectedRepoConnectionId: 'ssh-dike',
+        selectedRepoSettings: { activeRuntimeEnvironmentId: 'env-1' },
+        settings: null
+      } as unknown as Parameters<typeof useWorkspaceIdentityState>[0])
+    )
+
+    expect(result.current.isRemote).toBe(false)
+    expect(result.current.connectionId).toBeNull()
+    expect(result.current.runtimeEnvironmentId).toBe('env-1')
   })
 })
