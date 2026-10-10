@@ -32,8 +32,10 @@ test('an unavailable browser on a responding managed host does not report a serv
     startSshRemoteOnlyBrowserFixture(target)
     // The first launch only creates the profile the relay-era host is saved into.
     const first = await session.launch()
+    app = first.app
     await waitForSessionReady(first.page)
     await session.close(first.app)
+    app = null
     const remote = seedRelayEraProfile(
       session.userDataDir,
       {

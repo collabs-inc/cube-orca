@@ -19,11 +19,28 @@ import {
 } from './helpers/ssh-remote-only-browser-fixture'
 import { createRetentionFixtureDirectory } from './helpers/host-created-terminal-retention-oracle'
 import { toSshExecutionHostId } from '../../src/shared/execution-host'
+import { DEFAULT_LOCAL_ORCA_PROFILE_ID } from '../../src/shared/orca-profiles'
+import { deriveBrowserRoutePartition } from '../../src/main/browser/browser-route-identity'
+import { sshExecutionHostStorageIdentity } from '../../src/main/browser/browser-execution-host-storage-identity'
 import { reconnect } from './helpers/orcad-convert-flow'
 import { navigateGuest } from './helpers/browser-split-guest-probes'
 
 const TEMPLATE = process.env.ORCA_E2E_ORCAD_CONVERT_TEMPLATE
 test.skip(!TEMPLATE || process.env.ORCA_E2E_SSH_DOCKER !== '1', 'Needs Docker and server template')
+
+/** The partition a relay-era build kept this host's browser storage in (local-ssh-browser-partitions). */
+function relayEraPartition(targetId: string): string {
+  return deriveBrowserRoutePartition({
+    orcaProfileId: DEFAULT_LOCAL_ORCA_PROFILE_ID,
+    browserProfileId: 'default',
+    authorityConnectionIdentity: JSON.stringify([
+      'orca-local-ssh-browser',
+      1,
+      DEFAULT_LOCAL_ORCA_PROFILE_ID
+    ]),
+    executionHostIdentity: sshExecutionHostStorageIdentity(targetId)
+  }).partition
+}
 
 async function guestMarker(page: Page, tabId: string): Promise<unknown> {
   return page.evaluate(async (id) => {
@@ -50,8 +67,10 @@ test('retained and new browser tabs keep SSH routing and login cookies after man
     startSshRemoteOnlyBrowserFixture(target)
     // The first launch only creates the profile the relay-era host is saved into.
     const first = await session.launch()
+    app = first.app
     await waitForSessionReady(first.page)
     await session.close(first.app)
+    app = null
     const remote = seedRelayEraProfile(
       session.userDataDir,
       {
@@ -95,6 +114,26 @@ test('retained and new browser tabs keep SSH routing and login cookies after man
       )
       .toBe(true)
     const cookieMarker = `cookie:${SSH_REMOTE_ONLY_COOKIE_NAME}=${SSH_REMOTE_ONLY_COOKIE_VALUE}`
+    // The login cookie a relay-era session left in that host's browser storage.
+    const partitionBefore = relayEraPartition(remote.targetId)
+    await app.evaluate(
+      async ({ session }, cookie) => {
+        const jar = session.fromPartition(cookie.partition).cookies
+        await jar.set({
+          url: cookie.url,
+          name: cookie.name,
+          value: cookie.value,
+          expirationDate: Math.floor(Date.now() / 1000) + 3600
+        })
+        await jar.flushStore()
+      },
+      {
+        partition: partitionBefore,
+        url: `${SSH_REMOTE_ONLY_ORIGIN}/`,
+        name: SSH_REMOTE_ONLY_COOKIE_NAME,
+        value: SSH_REMOTE_ONLY_COOKIE_VALUE
+      }
+    )
     cpSync(TEMPLATE!, template, { recursive: true })
     const server = await reconnect(page, remote.targetId)
     console.log('[browser-conversion-connect]', server)
@@ -137,19 +176,16 @@ test('retained and new browser tabs keep SSH routing and login cookies after man
       return tab?.id ?? null
     }, remote.worktreeId)
     expect(retained).toBe(tabId)
-    // The retained tab routes through the host: its login page sets the cookie later tabs share.
-    // It last loaded while the host was unreachable, so it may show an error page until reloaded.
+    // The retained tab reaches the host and still sends the relay-era cookie, with no new login.
     await expect(async () => {
-      if ((await guestMarker(page, tabId)) !== 'login-marker') {
-        await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/login`)
-      }
-      expect(await guestMarker(page, tabId)).toBe('login-marker')
+      await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/echo/retained`)
+      expect(await guestMarker(page, tabId)).toBe(cookieMarker)
     }).toPass({ timeout: 60_000 })
-    const partitionBefore = await page
-      .locator(`[data-browser-overlay-tab-id="${tabId}"] webview`)
-      .getAttribute('partition')
-    expect(partitionBefore).toMatch(/^persist:/)
-    await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/echo/retained`)
+    expect(
+      await page
+        .locator(`[data-browser-overlay-tab-id="${tabId}"] webview`)
+        .getAttribute('partition')
+    ).toBe(partitionBefore)
     await expect.poll(() => guestMarker(page, tabId), { timeout: 30_000 }).toBe(cookieMarker)
     expect(readSshRemoteOnlyRequests(target)).toContainEqual({
       path: '/echo/retained',
