@@ -18,6 +18,41 @@ import { markOnboardingProjectAdded } from '@/lib/onboarding-project-checklist'
 import { translate } from '@/i18n/i18n'
 import { upsertAddedRepoWithProjectHostSetup } from './add-repo-store-upsert'
 import { worktreeRefreshOptions } from './add-repo-runtime-owner'
+import { addRuntimeSshRepo } from '@/runtime/runtime-ssh-target-management'
+import type { Repo } from '../../../../shared/repo-types'
+
+// Why: with a server set, the SSH target is that server's own host and only the server adds it.
+async function addSshFolderProject(args: {
+  connectionId: string
+  runtimeEnvironmentId: string | null
+  remotePath: string
+  displayName: string
+}): Promise<{ repo: Repo; ownerOptions: ReturnType<typeof worktreeRefreshOptions> }> {
+  const request = {
+    connectionId: args.connectionId,
+    remotePath: args.remotePath,
+    kind: 'folder' as const,
+    ...(args.displayName ? { displayName: args.displayName } : {})
+  }
+  if (args.runtimeEnvironmentId) {
+    const added = await addRuntimeSshRepo(args.runtimeEnvironmentId, request)
+    return {
+      repo: upsertAddedRepoWithProjectHostSetup(added, {
+        runtimeEnvironmentId: args.runtimeEnvironmentId
+      }).repo,
+      ownerOptions: worktreeRefreshOptions(args.runtimeEnvironmentId)
+    }
+  }
+  const result = await window.api.repos.addRemote(request)
+  if ('error' in result) {
+    throw new Error(result.error)
+  }
+  return {
+    repo: upsertAddedRepoWithProjectHostSetup(result.repo, { sshConnectionId: args.connectionId })
+      .repo,
+    ownerOptions: worktreeRefreshOptions(undefined, args.connectionId)
+  }
+}
 
 const NonGitFolderDialog = React.memo(function NonGitFolderDialog() {
   const activeModal = useAppStore((s) => s.activeModal)
@@ -57,22 +92,15 @@ const NonGitFolderDialog = React.memo(function NonGitFolderDialog() {
       void (async () => {
         try {
           const stateBeforeAdd = useAppStore.getState()
-          const result = await window.api.repos.addRemote({
+          const { repo, ownerOptions } = await addSshFolderProject({
             connectionId,
+            runtimeEnvironmentId: runtimeEnvironmentId || null,
             remotePath: folderPath,
-            kind: 'folder',
-            ...(displayName ? { displayName } : {})
-          })
-          if ('error' in result) {
-            throw new Error(result.error)
-          }
-          const { repo } = upsertAddedRepoWithProjectHostSetup(result.repo, {
-            sshConnectionId: connectionId
+            displayName
           })
           const state = useAppStore.getState()
           const hadProjectBeforeAdd = stateBeforeAdd.repos.length > 0
           await markOnboardingProjectAdded('addedFolder')
-          const ownerOptions = worktreeRefreshOptions(undefined, connectionId)
           await state.fetchWorktrees(repo.id, ownerOptions)
           // Why: mirror the local non-git folder flow — without this the
           // dialog closes and the UI shows no visible change, making the

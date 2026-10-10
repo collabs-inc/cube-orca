@@ -12,8 +12,12 @@ const mocks = vi.hoisted(() => ({
     projectHostSetups: [],
     clearOrcaHookTrustForRepo: vi.fn(),
     openModal: vi.fn(),
-    cancelNestedRepoScan: vi.fn()
+    cancelNestedRepoScan: vi.fn(),
+    sshStateByEnvironment: new Map()
   },
+  listServerTargets: vi.fn(),
+  addServerRepo: vi.fn(),
+  connectServerTarget: vi.fn(),
   addRemote: vi.fn(),
   listTargets: vi.fn(),
   getState: vi.fn(),
@@ -62,6 +66,15 @@ vi.mock('@/store', () => {
   )
   return { useAppStore }
 })
+
+vi.mock('@/runtime/runtime-ssh-target-management', () => ({
+  listRuntimeEditableSshTargets: mocks.listServerTargets,
+  addRuntimeSshRepo: mocks.addServerRepo
+}))
+
+vi.mock('@/runtime/runtime-environment-ssh-state', () => ({
+  connectRuntimeEnvironmentSshTarget: mocks.connectServerTarget
+}))
 
 vi.mock('../../../../shared/nested-repo-telemetry', () => ({
   createNestedRepoTelemetryAttemptId: () => 'attempt-1'
@@ -224,6 +237,126 @@ describe('useRemoteRepo default-checkout handoff', () => {
 
     expect(mocks.storeState.cancelNestedRepoScan).toHaveBeenCalledWith('scan-ssh', {
       runtimeEnvironmentId: null
+    })
+  })
+
+  // Adapted from the community PR #8492 by @jae-heo.
+  describe("a paired server's own SSH hosts (#8489)", () => {
+    function serverRemoteRepo(scanNestedRepos = vi.fn().mockResolvedValue(null)) {
+      return import('./AddRepoSteps').then(({ useRemoteRepo }) =>
+        useRemoteRepo(
+          mocks.fetchWorktrees,
+          vi.fn(),
+          vi.fn(),
+          mocks.onGitRepoReady,
+          scanNestedRepos,
+          undefined,
+          undefined,
+          'env-linux'
+        )
+      )
+    }
+
+    it("lists the server's hosts, never this client's", async () => {
+      mocks.stateValues = [[], null, '~/', null, false, null]
+      mocks.listServerTargets.mockResolvedValue([
+        {
+          id: 'ssh-p8',
+          label: 'p8',
+          host: 'p8',
+          port: 22,
+          username: 'me',
+          connectionStatus: 'connected'
+        }
+      ])
+
+      const result = await serverRemoteRepo()
+      await result.handleOpenRemoteStep('ssh-p8')
+
+      expect(mocks.listServerTargets).toHaveBeenCalledWith('env-linux')
+      expect(mocks.listTargets).not.toHaveBeenCalled()
+      expect(mocks.getState).not.toHaveBeenCalled()
+      expect(mocks.stateSetters[0]).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: 'ssh-p8',
+          state: expect.objectContaining({ status: 'connected' })
+        })
+      ])
+      expect(mocks.stateSetters[1]).toHaveBeenCalledWith('ssh-p8')
+    })
+
+    it('shows why when the server cannot list them, with no local fallback', async () => {
+      mocks.stateValues = [[], null, '~/', null, false, null]
+      mocks.listServerTargets.mockRejectedValue(
+        new Error('Update this Orca server to manage its SSH hosts from here.')
+      )
+
+      const result = await serverRemoteRepo()
+      await result.handleOpenRemoteStep()
+
+      expect(mocks.listTargets).not.toHaveBeenCalled()
+      expect(mocks.stateSetters[3]).toHaveBeenCalledWith(
+        'Update this Orca server to manage its SSH hosts from here.'
+      )
+    })
+
+    it('adds the project through the server and refreshes it as server-owned', async () => {
+      const repo = makeRepo({ connectionId: 'ssh-p8', executionHostId: 'ssh:ssh-p8' })
+      mocks.stateValues = [[], 'ssh-p8', '/srv/repo', null, false, null]
+      mocks.addServerRepo.mockResolvedValue(repo)
+      mocks.fetchWorktrees.mockResolvedValue(true)
+      const scanNestedRepos = vi.fn()
+
+      const result = await serverRemoteRepo(scanNestedRepos)
+      await result.handleAddRemoteRepo()
+
+      expect(mocks.addServerRepo).toHaveBeenCalledWith('env-linux', {
+        connectionId: 'ssh-p8',
+        remotePath: '/srv/repo'
+      })
+      expect(mocks.addRemote).not.toHaveBeenCalled()
+      expect(scanNestedRepos).not.toHaveBeenCalled()
+      expect(mocks.storeState.repos).toContainEqual({
+        ...repo,
+        executionHostId: 'runtime:env-linux'
+      })
+      expect(mocks.fetchWorktrees).toHaveBeenCalledWith(repo.id, {
+        requireAuthoritative: true,
+        executionHostId: 'runtime:env-linux'
+      })
+      expect(mocks.onGitRepoReady).toHaveBeenCalledWith(repo.id, 'runtime:env-linux')
+    })
+
+    it('hands a non-git folder to the confirm dialog bound to the server', async () => {
+      mocks.stateValues = [[], 'ssh-p8', '/srv/notes', null, false, null]
+      mocks.addServerRepo.mockRejectedValue(new Error('Not a valid git repository: /srv/notes'))
+
+      const result = await serverRemoteRepo()
+      await result.handleAddRemoteRepo()
+
+      expect(mocks.storeState.openModal).toHaveBeenCalledWith('confirm-non-git-folder', {
+        folderPath: '/srv/notes',
+        connectionId: 'ssh-p8',
+        runtimeEnvironmentId: 'env-linux'
+      })
+    })
+
+    it('connects the host through the server', async () => {
+      mocks.stateValues = [[], null, '~/', null, false, null]
+      mocks.connectServerTarget.mockResolvedValue({
+        targetId: 'ssh-p8',
+        status: 'connected',
+        error: null,
+        reconnectAttempt: 0
+      })
+      const sshConnect = vi.fn()
+      Object.assign(window.api.ssh, { connect: sshConnect })
+
+      const result = await serverRemoteRepo()
+      await result.handleConnectTarget('ssh-p8')
+
+      expect(mocks.connectServerTarget).toHaveBeenCalledWith('env-linux', 'ssh-p8')
+      expect(sshConnect).not.toHaveBeenCalled()
     })
   })
 })

@@ -4,6 +4,14 @@ import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import type { NestedRepoScanResult } from '../../../../shared/project-group-types'
 import type { SshTarget, SshConnectionState } from '../../../../shared/ssh-types'
+import type { Repo } from '../../../../shared/repo-types'
+import { addRuntimeSshRepo } from '@/runtime/runtime-ssh-target-management'
+import { connectRuntimeEnvironmentSshTarget } from '@/runtime/runtime-environment-ssh-state'
+import {
+  loadServerSshTargets,
+  withServerSshStates,
+  type RemoteRepoTarget
+} from './add-repo-server-ssh-targets'
 import { createNestedRepoTelemetryAttemptId } from '../../../../shared/nested-repo-telemetry'
 import { translate } from '@/i18n/i18n'
 import { extractIpcErrorMessage } from '@/lib/ipc-error'
@@ -12,6 +20,23 @@ import { worktreeRefreshOptions } from './add-repo-runtime-owner'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 
 // ── SSH host project hook ───────────────────────────────────────────
+
+async function loadLocalSshTargets(): Promise<RemoteRepoTarget[]> {
+  const targets = (await window.api.ssh.listTargets()) as SshTarget[]
+  return Promise.all(
+    targets.map(async (t) => {
+      const state = (await window.api.ssh.getState({ targetId: t.id })) as SshConnectionState | null
+      return { ...t, state: state ?? undefined }
+    })
+  )
+}
+
+function unwrapAddedRepo(result: { repo: Repo } | { error: string }): Repo {
+  if ('error' in result) {
+    throw new Error(result.error)
+  }
+  return result.repo
+}
 
 export function useRemoteRepo(
   fetchWorktrees: (
@@ -38,9 +63,11 @@ export function useRemoteRepo(
     inProgress: boolean,
     scanId: string | null
   ) => void,
-  onNestedScanResult?: (scan: NestedRepoScanResult | null, attemptId: string) => void
+  onNestedScanResult?: (scan: NestedRepoScanResult | null, attemptId: string) => void,
+  /** A paired server: its own SSH hosts are listed, browsed and added by that server only. */
+  serverEnvironmentId: string | null = null
 ) {
-  const [sshTargets, setSshTargets] = useState<(SshTarget & { state?: SshConnectionState })[]>([])
+  const [sshTargets, setSshTargets] = useState<RemoteRepoTarget[]>([])
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(null)
   const [remotePath, setRemotePath] = useState('~/')
   const [remoteError, setRemoteError] = useState<string | null>(null)
@@ -75,18 +102,9 @@ export function useRemoteRepo(
       const gen = ++remoteGenRef.current
       setStep('remote')
       try {
-        const targets = (await window.api.ssh.listTargets()) as SshTarget[]
-        if (gen !== remoteGenRef.current) {
-          return
-        }
-        const withState = await Promise.all(
-          targets.map(async (t) => {
-            const state = (await window.api.ssh.getState({
-              targetId: t.id
-            })) as SshConnectionState | null
-            return { ...t, state: state ?? undefined }
-          })
-        )
+        const withState = serverEnvironmentId
+          ? await loadServerSshTargets(serverEnvironmentId)
+          : await loadLocalSshTargets()
         if (gen !== remoteGenRef.current) {
           return
         }
@@ -102,20 +120,35 @@ export function useRemoteRepo(
         if (connected) {
           setSelectedTargetId(connected.id)
         }
-      } catch {
+      } catch (error) {
         if (gen !== remoteGenRef.current) {
           return
         }
         setSshTargets([])
+        if (serverEnvironmentId) {
+          setRemoteError(extractIpcErrorMessage(error, String(error)))
+        }
       }
     },
-    [setStep]
+    [serverEnvironmentId, setStep]
   )
 
   // Why: keep the target list's connection state in sync while the dialog is
   // open, so clicking the inline Connect button below updates the dot/label
   // live without the user reopening the step.
+  const serverSshStates = useAppStore((s) =>
+    serverEnvironmentId
+      ? s.sshStateByEnvironment.get(serverEnvironmentId)?.connectionStates
+      : undefined
+  )
   useEffect(() => {
+    setSshTargets((prev) => withServerSshStates(prev, serverSshStates))
+  }, [serverSshStates])
+
+  useEffect(() => {
+    if (serverEnvironmentId) {
+      return
+    }
     const unsubscribe = window.api.ssh.onStateChanged(({ targetId, state }) => {
       setSshTargets((prev) => prev.map((t) => (t.id === targetId ? { ...t, state } : t)))
       if (state.status === 'connected') {
@@ -123,19 +156,32 @@ export function useRemoteRepo(
       }
     })
     return unsubscribe
-  }, [])
+  }, [serverEnvironmentId])
 
-  const handleConnectTarget = useCallback(async (targetId: string) => {
-    try {
-      await window.api.ssh.connect({ targetId })
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : translate('auto.components.sidebar.AddRepoSteps.3e64e8a70d', 'Connection failed')
-      )
-    }
-  }, [])
+  const handleConnectTarget = useCallback(
+    async (targetId: string) => {
+      try {
+        if (serverEnvironmentId) {
+          const state = await connectRuntimeEnvironmentSshTarget(serverEnvironmentId, targetId)
+          if (state) {
+            setSshTargets((prev) => prev.map((t) => (t.id === targetId ? { ...t, state } : t)))
+            setSelectedTargetId((curr) =>
+              state.status === 'connected' ? (curr ?? targetId) : curr
+            )
+          }
+          return
+        }
+        await window.api.ssh.connect({ targetId })
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : translate('auto.components.sidebar.AddRepoSteps.3e64e8a70d', 'Connection failed')
+        )
+      }
+    },
+    [serverEnvironmentId]
+  )
 
   const handleAddRemoteRepo = useCallback(async () => {
     if (!selectedTargetId || !remotePath.trim()) {
@@ -150,28 +196,31 @@ export function useRemoteRepo(
       const attemptId = createNestedRepoTelemetryAttemptId()
       const scanId = `nested-repo-scan-${Date.now()}-${Math.random().toString(36).slice(2)}`
       setRemoteNestedScanId(scanId)
-      const scan = await scanNestedRepos?.(trimmedRemotePath, selectedTargetId, {
-        scanId,
-        runtimeEnvironmentId: null,
-        onProgress: (progressScan) => {
-          if (
-            gen !== remoteGenRef.current ||
-            !mountedRef.current ||
-            progressScan.selectedPathKind !== 'non_git_folder' ||
-            progressScan.repos.length === 0
-          ) {
-            return
-          }
-          showNestedRepoReview?.(
-            progressScan,
-            trimmedRemotePath,
-            selectedTargetId,
-            attemptId,
-            true,
-            scanId
-          )
-        }
-      })
+      // Why no nested scan on a server's host: that server's scan cannot reach its SSH targets.
+      const scan = serverEnvironmentId
+        ? null
+        : await scanNestedRepos?.(trimmedRemotePath, selectedTargetId, {
+            scanId,
+            runtimeEnvironmentId: null,
+            onProgress: (progressScan) => {
+              if (
+                gen !== remoteGenRef.current ||
+                !mountedRef.current ||
+                progressScan.selectedPathKind !== 'non_git_folder' ||
+                progressScan.repos.length === 0
+              ) {
+                return
+              }
+              showNestedRepoReview?.(
+                progressScan,
+                trimmedRemotePath,
+                selectedTargetId,
+                attemptId,
+                true,
+                scanId
+              )
+            }
+          })
       if (!mountedRef.current || gen !== remoteGenRef.current) {
         return
       }
@@ -182,16 +231,16 @@ export function useRemoteRepo(
         return
       }
       setRemoteNestedScanId(null)
-      const result = await window.api.repos.addRemote({
-        connectionId: selectedTargetId,
-        remotePath: trimmedRemotePath
-      })
-      if ('error' in result) {
-        throw new Error(result.error)
-      }
-      const { alreadyPresent, repo } = upsertAddedRepoWithProjectHostSetup(result.repo, {
-        sshConnectionId: selectedTargetId
-      })
+      const request = { connectionId: selectedTargetId, remotePath: trimmedRemotePath }
+      const addedRepo = serverEnvironmentId
+        ? await addRuntimeSshRepo(serverEnvironmentId, request)
+        : unwrapAddedRepo(await window.api.repos.addRemote(request))
+      const { alreadyPresent, repo } = upsertAddedRepoWithProjectHostSetup(
+        addedRepo,
+        serverEnvironmentId
+          ? { runtimeEnvironmentId: serverEnvironmentId }
+          : { sshConnectionId: selectedTargetId }
+      )
 
       if (alreadyPresent) {
         useAppStore.getState().clearOrcaHookTrustForRepo(repo.id)
@@ -206,7 +255,9 @@ export function useRemoteRepo(
       )
       // Why: the repo is already persisted here; if SSH refresh is temporarily
       // non-authoritative, finish onto the project row instead of stranding the dialog.
-      const ownerOptions = worktreeRefreshOptions(undefined, selectedTargetId)
+      const ownerOptions = serverEnvironmentId
+        ? worktreeRefreshOptions(serverEnvironmentId)
+        : worktreeRefreshOptions(undefined, selectedTargetId)
       await fetchWorktrees(repo.id, ownerOptions)
       if (!mountedRef.current || gen !== remoteGenRef.current) {
         return
@@ -221,7 +272,8 @@ export function useRemoteRepo(
         closeModal()
         useAppStore.getState().openModal('confirm-non-git-folder', {
           folderPath: trimmedRemotePath,
-          connectionId: selectedTargetId
+          connectionId: selectedTargetId,
+          ...(serverEnvironmentId ? { runtimeEnvironmentId: serverEnvironmentId } : {})
         })
         return
       }
@@ -235,6 +287,7 @@ export function useRemoteRepo(
       }
     }
   }, [
+    serverEnvironmentId,
     selectedTargetId,
     remotePath,
     scanNestedRepos,

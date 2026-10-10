@@ -35,7 +35,10 @@ type SshApi = {
   }>
 }
 
-export async function saveNewSshHostFromForm({
+type SavedSshHost = Pick<SshTarget, 'configHost' | 'label' | 'host'>
+
+/** `ssh` is this client's own API or a paired server's (whose hosts never touch local metadata). */
+export async function saveNewSshHostFromForm<T extends SavedSshHost>({
   form,
   ssh,
   recordSshRepoReadoptions,
@@ -43,9 +46,14 @@ export async function saveNewSshHostFromForm({
   recordFeatureInteraction
 }: {
   form: EditingTarget
-  ssh: SshApi
+  ssh: {
+    listTargets: () => Promise<T[]>
+    addTarget: (args: {
+      target: SshTargetCreateInput
+    }) => Promise<{ repoReadoptions: SshRepoReadoption[] }>
+  }
   recordSshRepoReadoptions: (readoptions: readonly SshRepoReadoption[]) => void
-  setSshTargetsMetadata: (targets: SshTarget[]) => void
+  setSshTargetsMetadata: (targets: T[]) => void
   recordFeatureInteraction: (feature: 'ssh') => void
 }): Promise<'saved' | 'validation-failed' | 'failed'> {
   const { host, configHost, username, port } = getSshTargetDraftConnectionFields(form)

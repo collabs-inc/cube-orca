@@ -1,6 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import { CloneStep } from './AddRepoCloneStep'
 import { RemoteStep } from './AddRepoRemoteStep'
+import { useServerSshProjects } from './use-server-ssh-projects'
 import { CreateStep } from './AddRepoCreateStep'
 import { AddRepoLocalStartStep } from './AddRepoStartSteps'
 import { AddRepoServerPathStartStep } from './AddRepoServerStartStep'
@@ -149,6 +150,12 @@ export function AddRepoDialogStepContent({
   onPickCreateParent,
   onCreate
 }: AddRepoDialogStepContentProps): React.JSX.Element | null {
+  // Why here: the selected server decides whether its own SSH hosts can hold a new project.
+  const serverSsh = useServerSshProjects(
+    activeRuntimeEnvironmentId ?? null,
+    selectedHostLabel ?? null,
+    onOpenRemoteStep
+  )
   if (step === 'add') {
     return (
       <AddRepoLocalStartStep
@@ -159,10 +166,11 @@ export function AddRepoDialogStepContent({
         nestedScanInProgress={nestedScanInProgress}
         nestedScanId={nestedScanId}
         hostSelector={hostSelector}
-        showRemoteAction={showRemoteAction}
+        showRemoteAction={showRemoteAction || Boolean(serverSsh)}
         canCreateProject={canCreateProject}
         actionsDisabled={actionsDisabled}
         browseHostKind={browseHostKind}
+        serverSshProjects={serverSsh?.state}
         onBrowse={onBrowse}
         onOpenCloneStep={onOpenCloneStep}
         onOpenRemoteStep={onOpenRemoteStep}
@@ -205,6 +213,7 @@ export function AddRepoDialogStepContent({
         onOpenSshSettings={onOpenSshSettings}
         onConnectTarget={onConnectTarget}
         onStopNestedScan={onStopRemoteNestedScan}
+        server={serverSsh ?? undefined}
       />
     )
   }

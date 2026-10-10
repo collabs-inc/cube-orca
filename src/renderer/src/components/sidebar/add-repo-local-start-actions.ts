@@ -10,6 +10,8 @@ export type AddRepoLocalStartActionHandlers = {
   showRemoteAction?: boolean
   canCreateProject?: boolean
   browseHostKind?: 'local' | 'ssh' | 'runtime'
+  /** A paired server's own SSH hosts; `unsupported` when it predates managing them. */
+  serverSshProjects?: 'supported' | 'unsupported' | 'unknown'
 }
 
 export type AddRepoLocalStartAction = {
@@ -29,7 +31,8 @@ export function getAddRepoLocalStartActions({
   onOpenCreateStep,
   showRemoteAction = true,
   canCreateProject = true,
-  browseHostKind = 'local'
+  browseHostKind = 'local',
+  serverSshProjects
 }: { isSshLikely: boolean } & AddRepoLocalStartActionHandlers): {
   primaryAction: AddRepoLocalStartAction
   secondaryActions: AddRepoLocalStartAction[]
@@ -65,19 +68,41 @@ export function getAddRepoLocalStartActions({
     onClick: onBrowse
   }
 
-  const remote = {
-    kind: 'remote' as const,
-    icon: Monitor,
-    title: translate(
-      'auto.components.sidebar.add.repo.local.start.actions.3d162cc76f',
-      'Project on SSH host'
-    ),
-    description: translate(
-      'auto.components.sidebar.add.repo.local.start.actions.a6c20dca96',
-      'Open a project folder from an SSH host'
-    ),
-    onClick: onOpenRemoteStep
-  }
+  const remote = serverSshProjects
+    ? {
+        kind: 'remote' as const,
+        icon: Monitor,
+        title: translate(
+          'auto.components.sidebar.add.repo.local.start.actions.serverSshTitle',
+          "Project on this server's SSH host"
+        ),
+        description:
+          serverSshProjects === 'unsupported'
+            ? translate(
+                'auto.components.sidebar.add.repo.local.start.actions.serverSshUpdate',
+                'Update this server to add projects on its SSH hosts'
+              )
+            : translate(
+                'auto.components.sidebar.add.repo.local.start.actions.serverSshDescription',
+                'Open a project folder from an SSH host this server connects to'
+              ),
+        // Why: an old server has no way to do this, and this client must not do it locally.
+        disabled: serverSshProjects !== 'supported',
+        onClick: onOpenRemoteStep
+      }
+    : {
+        kind: 'remote' as const,
+        icon: Monitor,
+        title: translate(
+          'auto.components.sidebar.add.repo.local.start.actions.3d162cc76f',
+          'Project on SSH host'
+        ),
+        description: translate(
+          'auto.components.sidebar.add.repo.local.start.actions.a6c20dca96',
+          'Open a project folder from an SSH host'
+        ),
+        onClick: onOpenRemoteStep
+      }
   const clone = {
     kind: 'clone' as const,
     icon: Globe,

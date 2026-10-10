@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { CircleStop, FolderOpen, Settings } from 'lucide-react'
+import { CircleStop, FolderOpen, Plus, Settings } from 'lucide-react'
 import { DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { SshConnectionState, SshTarget } from '../../../../shared/ssh-types'
 import { RemoteFileBrowser } from './RemoteFileBrowser'
 import { SshTargetRow } from './SshTargetRow'
+import { AddServerSshHostDialog } from './AddServerSshHostDialog'
 import { translate } from '@/i18n/i18n'
 
 type RemoteStepProps = {
@@ -22,6 +23,8 @@ type RemoteStepProps = {
   onOpenSshSettings: () => void
   onConnectTarget: (id: string) => Promise<void>
   onStopNestedScan?: () => void
+  /** The paired server whose own SSH hosts are listed; absent for this client's hosts. */
+  server?: { environmentId: string; label: string; onTargetsChanged: () => void }
 }
 
 export function RemoteStep({
@@ -37,9 +40,11 @@ export function RemoteStep({
   onAdd,
   onOpenSshSettings,
   onConnectTarget,
-  onStopNestedScan
+  onStopNestedScan,
+  server
 }: RemoteStepProps): React.JSX.Element {
   const [browsing, setBrowsing] = useState(false)
+  const [addingServerHost, setAddingServerHost] = useState(false)
   const selectedTarget = selectedTargetId
     ? sshTargets.find((target) => target.id === selectedTargetId)
     : null
@@ -68,6 +73,7 @@ export function RemoteStep({
         </DialogHeader>
         <RemoteFileBrowser
           targetId={selectedTargetId}
+          runtimeEnvironmentId={server?.environmentId}
           initialPath={remotePath || '~'}
           onSelect={(path) => {
             onRemotePathChange(path)
@@ -95,10 +101,16 @@ export function RemoteStep({
                 'Enter the path to a Git repository on {{value0}}.',
                 { value0: selectedTargetLabel ?? 'this SSH target' }
               )
-            : translate(
-                'auto.components.sidebar.AddRepoRemoteStep.80557be85a',
-                'Choose a connected SSH target and enter the path to a Git repository.'
-              )}
+            : server
+              ? translate(
+                  'auto.components.sidebar.AddRepoRemoteStep.serverDescription',
+                  'Choose an SSH host that {{server}} connects to, and enter the path to a Git repository on it.',
+                  { server: server.label }
+                )
+              : translate(
+                  'auto.components.sidebar.AddRepoRemoteStep.80557be85a',
+                  'Choose a connected SSH target and enter the path to a Git repository.'
+                )}
         </DialogDescription>
       </DialogHeader>
 
@@ -108,7 +120,15 @@ export function RemoteStep({
             <label className="text-[11px] font-medium text-muted-foreground">
               {translate('auto.components.sidebar.AddRepoRemoteStep.44637f43bd', 'SSH target')}
             </label>
-            {sshTargets.length === 0 ? (
+            {sshTargets.length === 0 && server ? (
+              <p className="py-1 text-xs text-muted-foreground">
+                {translate(
+                  'auto.components.sidebar.AddRepoRemoteStep.serverEmpty',
+                  '{{server}} has no SSH hosts yet.',
+                  { server: server.label }
+                )}
+              </p>
+            ) : sshTargets.length === 0 ? (
               <div className="space-y-1.5 py-1">
                 <p className="text-xs text-muted-foreground">
                   {translate(
@@ -142,6 +162,29 @@ export function RemoteStep({
                 ))}
               </div>
             )}
+            {server ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setAddingServerHost(true)}
+                >
+                  <Plus className="size-3.5" />
+                  {translate(
+                    'auto.components.sidebar.AddRepoRemoteStep.serverAddHost',
+                    'Add SSH host'
+                  )}
+                </Button>
+                <AddServerSshHostDialog
+                  environmentId={server.environmentId}
+                  serverLabel={server.label}
+                  open={addingServerHost}
+                  onOpenChange={setAddingServerHost}
+                  onSaved={server.onTargetsChanged}
+                />
+              </>
+            ) : null}
           </div>
         ) : selectedTarget && !selectedTargetConnected ? (
           <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/30 px-3 py-2">

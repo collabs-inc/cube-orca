@@ -71,6 +71,7 @@ type AddRepoLocalStartStepProps = {
   canCreateProject?: boolean
   actionsDisabled?: boolean
   browseHostKind?: 'local' | 'ssh' | 'runtime'
+  serverSshProjects?: 'supported' | 'unsupported' | 'unknown'
   onBrowse: () => void
   onOpenCloneStep: () => void
   onOpenRemoteStep: () => void
@@ -90,6 +91,7 @@ export function AddRepoLocalStartStep({
   canCreateProject = true,
   actionsDisabled = false,
   browseHostKind = 'local',
+  serverSshProjects,
   onBrowse,
   onOpenCloneStep,
   onOpenRemoteStep,
@@ -107,7 +109,8 @@ export function AddRepoLocalStartStep({
     onOpenCreateStep,
     showRemoteAction,
     canCreateProject,
-    browseHostKind
+    browseHostKind,
+    serverSshProjects
   })
 
   // The white fill + ⏎ chip is a roving selection indicator, not a fixed "primary" badge:

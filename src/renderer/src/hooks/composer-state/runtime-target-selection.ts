@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { getFolderSourceRepos } from '@/components/sidebar/folder-workspace-composer-helpers'
 import { parseExecutionHostId, getRepoExecutionHostId } from '../../../../shared/execution-host'
 import { getSelectedRepoSshGate } from '@/lib/new-workspace-ssh-gate'
+import { selectRepoSshGateInput } from '@/lib/repo-ssh-connection'
 import { useFolderWorkspaceComposerPathStatus } from '@/components/sidebar/folder-workspace-composer-path-status'
 import { useDetectedAgents } from '@/hooks/useDetectedAgents'
 import type { TuiAgent } from '../../../../shared/tui-agent'
@@ -250,8 +251,14 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
     initialRecipeId: initialEphemeralVmRecipeId
   })
 
-  const selectedRepoConnectionId = selectedRepo?.connectionId ?? null
-
+  // Why the shared gate: a paired server's own SSH target is read from that server (#25887).
+  const selectedRepoSshGateInput = selectedRepo
+    ? selectRepoSshGateInput(
+        { sshConnectionStates, sshStateByEnvironment, runtimeStatusByEnvironmentId },
+        selectedRepo
+      )
+    : null
+  const selectedRepoConnectionId = selectedRepoSshGateInput?.connectionId ?? null
   const selectedRepoSshState = selectedRepoConnectionId
     ? (sshConnectionStates.get(selectedRepoConnectionId) ?? null)
     : null
@@ -259,7 +266,7 @@ export function useComposerRuntimeTargetSelection(input: ComposerRuntimeTargetSe
   const { selectedRepoSshStatus, selectedRepoRequiresConnection, selectedRepoConnectInProgress } =
     getSelectedRepoSshGate({
       connectionId: selectedRepoConnectionId,
-      status: selectedRepoSshState?.status ?? null
+      status: selectedRepoSshGateInput?.status ?? null
     })
 
   const repoIdRef = useRef(repoId)
