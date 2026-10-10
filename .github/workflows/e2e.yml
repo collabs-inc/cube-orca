@@ -363,7 +363,9 @@ jobs:
               . != "tests/e2e/ssh-orcad-explorer-watch-recovery.spec.ts" and
               . != "tests/e2e/ssh-orcad-explorer-selected-host.spec.ts" and
               . != "tests/e2e/ssh-orcad-browser-drop-owner.spec.ts" and
-              . != "tests/e2e/ssh-orcad-terminal-root-owner.spec.ts"
+              . != "tests/e2e/ssh-orcad-terminal-root-owner.spec.ts" and
+              . != "tests/e2e/ssh-orcad-terminal-journeys.spec.ts" and
+              . != "tests/e2e/ssh-orcad-workspace-tools.spec.ts"
             )' <<<"$TEST_FILES_JSON" > "$RUNNER_TEMP/general-e2e-specs"
           fi
           mapfile -t TEST_FILES < "$RUNNER_TEMP/general-e2e-specs"
@@ -638,6 +640,54 @@ jobs:
         if: failure()
         with:
           name: orcad-auto-convert-docker-traces
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # SSH user journeys (terminal reconnect/restore/faults, Quick Open, ports, links, agent status) on a
+  # Docker host served by managed orcad. Its own runner so the convert lane keeps its time budget.
+  orcad-journeys-docker:
+    name: ssh journeys on managed orcad (Docker)
+    needs: [build, prepare-native-cache]
+    if: inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/ssh-orcad-terminal-journeys.spec.ts') || contains(inputs.test_files, 'tests/e2e/ssh-orcad-workspace-tools.spec.ts')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ORCA_BACKGROUND_LAUNCH: '1'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Install headless tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential ripgrep xvfb openbox x11-utils
+      - uses: ./.github/actions/install-node-dependencies
+        with:
+          native-runtime: electron
+      - uses: actions/download-artifact@v8
+        with:
+          name: e2e-build-out
+          path: out/
+      - name: Build the linux-x64-glibc orcad template
+        run: |
+          pnpm build:orcad-prebuilds
+          pnpm build:orcad-prebuilds --require-slots linux-x64-glibc
+          pnpm build:orcad
+          node config/scripts/build-orcad-template.mjs --targets linux-x64-glibc
+          mv out/orcad-template "$RUNNER_TEMP/orcad-convert-template"
+      - name: Run SSH journeys on a managed Docker host
+        env:
+          SKIP_BUILD: '1'
+          ORCA_E2E_SSH_DOCKER: '1'
+          ORCA_E2E_ORCAD_CONVERT_HOST: docker
+          ORCA_E2E_FORWARD_APP_LOGS: '1'
+        run: |
+          export ORCA_E2E_ORCAD_CONVERT_TEMPLATE="$RUNNER_TEMP/orcad-convert-template"
+          xvfb-run --auto-servernum bash .github/scripts/e2e-with-window-manager.sh pnpm exec playwright test --config tests/playwright.config.ts tests/e2e/ssh-orcad-terminal-journeys.spec.ts tests/e2e/ssh-orcad-workspace-tools.spec.ts --project=electron-headless --workers=1
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: orcad-journeys-docker-traces
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore

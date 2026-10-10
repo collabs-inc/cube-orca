@@ -71,6 +71,11 @@ export const ORCAD_EXPLORER_WATCH_RECOVERY_E2E_SPEC =
 export const ORCAD_EXPLORER_SELECTED_HOST_E2E_SPEC =
   'tests/e2e/ssh-orcad-explorer-selected-host.spec.ts'
 export const ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC = 'tests/e2e/ssh-orcad-terminal-root-owner.spec.ts'
+// Run in their own job, which builds the template they need.
+export const ORCAD_JOURNEY_E2E_SPECS = [
+  'tests/e2e/ssh-orcad-terminal-journeys.spec.ts',
+  'tests/e2e/ssh-orcad-workspace-tools.spec.ts'
+]
 export const DEDICATED_E2E_SPECS = [
   ...DOCKER_SSH_E2E_SPECS,
   NODE_NETWORK_E2E_SPEC,
@@ -93,7 +98,8 @@ export const DEDICATED_E2E_SPECS = [
   ORCAD_EXPLORER_WATCH_RECOVERY_E2E_SPEC,
   ORCAD_EXPLORER_SELECTED_HOST_E2E_SPEC,
   ORCAD_BROWSER_DROP_OWNER_E2E_SPEC,
-  ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC
+  ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC,
+  ...ORCAD_JOURNEY_E2E_SPECS
 ]
 const dedicatedSpecs = new Set(DEDICATED_E2E_SPECS)
 const dockerSpecs = new Set(DOCKER_SSH_E2E_SPECS)
@@ -148,7 +154,8 @@ export function classifyE2eJobs(input, sshSourceChanged = 'false') {
           spec === ORCAD_EXPLORER_WATCH_RECOVERY_E2E_SPEC ||
           spec === ORCAD_EXPLORER_SELECTED_HOST_E2E_SPEC ||
           spec === ORCAD_BROWSER_DROP_OWNER_E2E_SPEC ||
-          spec === ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC
+          spec === ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC ||
+          ORCAD_JOURNEY_E2E_SPECS.includes(spec)
       )
   }
 }

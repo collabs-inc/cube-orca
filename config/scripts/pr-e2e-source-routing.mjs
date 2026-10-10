@@ -187,6 +187,22 @@ export const PR_E2E_SOURCE_ROUTES = [
         ))
   },
   {
+    // Why: managed SSH hosts are now the only SSH path, so these specs carry its user journeys.
+    id: 'ssh.orcad-journeys',
+    specs: [
+      'tests/e2e/ssh-orcad-terminal-journeys.spec.ts',
+      'tests/e2e/ssh-orcad-workspace-tools.spec.ts'
+    ],
+    matches: (file) =>
+      /^tests\/e2e\/helpers\/(?:orcad-managed-workspace|orcad-convert-(?:flow|host)|orcad-upgrade-profile|paired-host-terminal|terminal-workspace-root-link)\.ts$/.test(
+        file
+      ) ||
+      (isProductSource(file) &&
+        /^src\/(?:main\/ssh\/orcad-managed-|main\/ipc\/ssh-port-forward|renderer\/src\/startup\/(?:ssh-startup-reconnect|startup-ssh-connection-restore)\.ts$|renderer\/src\/runtime\/web-runtime-session|renderer\/src\/components\/terminal-pane\/remote-runtime-)/.test(
+          file
+        ))
+  },
+  {
     id: 'ssh.localhost-agent-hooks',
     specs: ['tests/e2e/ssh-localhost.spec.ts'],
     matches: (file) =>
