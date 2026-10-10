@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
 import type { NestedRepoScanResult } from '../../../../shared/project-group-types'
-import type { SshTarget, SshConnectionState } from '../../../../shared/ssh-types'
 import type { Repo } from '../../../../shared/repo-types'
 import { addRuntimeSshRepo } from '@/runtime/runtime-ssh-target-management'
 import { connectRuntimeEnvironmentSshTarget } from '@/runtime/runtime-environment-ssh-state'
@@ -22,10 +21,10 @@ import type { ExecutionHostId } from '../../../../shared/execution-host'
 // ── SSH host project hook ───────────────────────────────────────────
 
 async function loadLocalSshTargets(): Promise<RemoteRepoTarget[]> {
-  const targets = (await window.api.ssh.listTargets()) as SshTarget[]
+  const targets = await window.api.ssh.listTargets()
   return Promise.all(
     targets.map(async (t) => {
-      const state = (await window.api.ssh.getState({ targetId: t.id })) as SshConnectionState | null
+      const state = await window.api.ssh.getState({ targetId: t.id })
       return { ...t, state: state ?? undefined }
     })
   )
@@ -141,9 +140,11 @@ export function useRemoteRepo(
       ? s.sshStateByEnvironment.get(serverEnvironmentId)?.connectionStates
       : undefined
   )
-  useEffect(() => {
-    setSshTargets((prev) => withServerSshStates(prev, serverSshStates))
-  }, [serverSshStates])
+  // Why derived: the server pushes SSH state changes into the store while this step is open.
+  const displayedSshTargets = useMemo(
+    () => withServerSshStates(sshTargets, serverSshStates),
+    [serverSshStates, sshTargets]
+  )
 
   useEffect(() => {
     if (serverEnvironmentId) {
@@ -300,7 +301,7 @@ export function useRemoteRepo(
   ])
 
   return {
-    sshTargets,
+    sshTargets: displayedSshTargets,
     selectedTargetId,
     remotePath,
     remoteError,

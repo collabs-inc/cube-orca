@@ -30,6 +30,7 @@ function state(options: {
   hydrated?: boolean
   reachable?: boolean
 }) {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a partial store fixture; the selector reads only the SSH maps and the status entry built here.
   return {
     sshConnectionStates: new Map<string, SshConnectionState>(),
     sshTargetLabels: new Map<string, string>(),
@@ -52,7 +53,6 @@ function state(options: {
     runtimeStatusByEnvironmentId: new Map([
       ['env-1', options.reachable === false ? { status: null } : { checkedAt: 1, status: {} }]
     ])
-    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: a partial store fixture; the selector reads only the SSH maps and the status entry built here.
   } as unknown as Parameters<typeof selectRepoSshGateInput>[0]
 }
 

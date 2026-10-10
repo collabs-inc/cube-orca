@@ -31,6 +31,7 @@ vi.mock('react', async (importOriginal) => {
   return {
     ...actual,
     useCallback: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+    useMemo: <T>(factory: () => T) => factory(),
     useEffect: (effect: () => void | (() => void)) => {
       effect()
     },

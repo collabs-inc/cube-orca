@@ -3,10 +3,10 @@
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  state: {} as Record<string, unknown>,
-  connectRuntimeEnvironmentSshTarget: vi.fn()
-}))
+const mocks = vi.hoisted(() => {
+  const state: Record<string, unknown> = {}
+  return { state, connectRuntimeEnvironmentSshTarget: vi.fn() }
+})
 
 vi.mock('@/store', () => ({ useAppStore: { getState: () => mocks.state } }))
 vi.mock('@/runtime/runtime-environment-ssh-state', () => ({
@@ -21,6 +21,7 @@ const sshConnect = vi.fn()
 
 function renderEffects(repoId: string, targetId: string) {
   return renderHook(() =>
+    // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the connect path reads only the refs and store set here; the rest are inert stubs.
     useHostRuntimeEffects({
       commitHookCheckIfCurrent: vi.fn(),
       connectionId: null,
@@ -43,7 +44,6 @@ function renderEffects(repoId: string, targetId: string) {
       setTuiAgent: vi.fn(),
       settings: null,
       tuiAgent: 'claude'
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- SAFETY: the connect path reads only the refs and store set here; the rest are inert stubs.
     } as unknown as Parameters<typeof useHostRuntimeEffects>[0])
   )
 }

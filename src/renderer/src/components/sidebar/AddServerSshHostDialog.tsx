@@ -64,7 +64,7 @@ export function AddServerSshHostDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-      <DialogContent className="scrollbar-sleek max-h-[min(90vh,560px)] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl">
         <AddRemoteHostSshFormPanel
           form={form}
           disabled={isSaving}
