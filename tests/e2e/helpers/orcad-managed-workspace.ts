@@ -53,20 +53,23 @@ export type ManagedWorkspace = {
   environmentId: string
 }
 
-/** Leaves the managed repository active; the caller owns closing `app`. */
+/** Leaves the managed repository active; each launch is recorded on `fixture` for teardown. */
 export async function launchManagedWorkspace(
-  session: ReturnType<typeof createRestartSession>,
-  host: OrcadConvertHost
+  fixture: ManagedHostFixture
 ): Promise<ManagedWorkspace> {
+  const { host, session } = fixture
   // The first launch only creates the profile the saved SSH host is written into.
   const first = await session.launch()
+  fixture.app = first.app
   await waitForSessionReady(first.page)
   await session.close(first.app)
+  fixture.app = null
   const seeded = seedRelayEraProfile(session.userDataDir, host.input, {
     repoPath: host.remoteRepoPath,
     folderPath: host.remoteFolderPath
   })
   const { app, page } = await session.launch()
+  fixture.app = app
   await waitForSessionReady(page)
   await convertAndRetain(page, session.userDataDir, seeded)
   const environmentId = await managedEnvironmentId(page, seeded.targetId)
@@ -131,11 +134,11 @@ export async function openTerminalTab(page: Page, worktreeId: string): Promise<s
   await waitForPane(page, created!)
   // Keys typed before the shell's first prompt can be lost, as they would be for a user too.
   await expect
-    .poll(async () => (await readPairedPaneContent(page, created!)).trimEnd(), {
+    .poll(() => readPairedPaneContent(page, created!), {
       timeout: 60_000,
       message: `the shell in ${created} never printed a prompt`
     })
-    .toMatch(/[#$]$/)
+    .toMatch(/[#$] /)
   return created!
 }
 

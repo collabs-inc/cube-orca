@@ -7,7 +7,7 @@
  *    closed while the host is disconnected stays closed.
  * 3. Faults: a pane outlives a dropped SSH link and a frozen host, and answers input after both.
  */
-import type { Page } from '@stablyai/playwright-test'
+import type { ElectronApplication, Page } from '@stablyai/playwright-test'
 import { expect, test } from './helpers/orca-app'
 import { reconnect } from './helpers/orcad-convert-flow'
 import { readPairedPaneContent } from './helpers/paired-host-terminal'
@@ -33,6 +33,13 @@ test.skip(
 )
 test.skip(process.platform === 'win32', 'The Docker SSH host uses POSIX tooling')
 
+function relaunchable(app: ElectronApplication | null): ElectronApplication {
+  if (!app) {
+    throw new Error('No live launch to close')
+  }
+  return app
+}
+
 function sshStatus(page: Page, targetId: string): Promise<string | null> {
   return page.evaluate(
     (id) => window.__store?.getState().sshConnectionStates.get(id)?.status ?? null,
@@ -54,8 +61,7 @@ test('a managed pane keeps its scrollback and a running TUI across reconnects', 
   await withManagedHost(testInfo, async (fixture) => {
     // The fixture shell emits no OSC title; a real user's shell does, and the new-tab check reads it.
     fixture.host.exec!(`printf '%s\\n' 'PS1="\\[\\e]0;\\u@\\h: \\w\\a\\]$PS1"' >> /root/.bashrc`)
-    const { app, page, seeded } = await launchManagedWorkspace(fixture.session, fixture.host)
-    fixture.app = app
+    const { page, seeded } = await launchManagedWorkspace(fixture)
     const first = await openTerminalTab(page, seeded.worktreeId)
     const marker = await echoMarker(page, first, 'RECONNECT_MARKER')
 
@@ -123,8 +129,7 @@ test('managed tabs restore exactly once, and a tab closed while disconnected sta
 {}, testInfo) => {
   test.setTimeout(15 * 60_000)
   await withManagedHost(testInfo, async (fixture) => {
-    const launched = await launchManagedWorkspace(fixture.session, fixture.host)
-    fixture.app = launched.app
+    const launched = await launchManagedWorkspace(fixture)
     const { seeded, environmentId } = launched
     let page = launched.page
     const opened = [
@@ -137,7 +142,7 @@ test('managed tabs restore exactly once, and a tab closed while disconnected sta
     expect(expected).toEqual(expect.arrayContaining(opened))
 
     for (let cycle = 0; cycle < 2; cycle += 1) {
-      await fixture.session.close(fixture.app)
+      await fixture.session.close(relaunchable(fixture.app))
       fixture.app = null
       const relaunched = await fixture.session.launch()
       fixture.app = relaunched.app
@@ -170,7 +175,7 @@ test('managed tabs restore exactly once, and a tab closed while disconnected sta
     await reconnect(page, seeded.targetId)
     const remaining = expected.filter((id) => id !== closed)
     expect(await settledTabIds(page, seeded.worktreeId)).toEqual(remaining)
-    await fixture.session.close(fixture.app)
+    await fixture.session.close(relaunchable(fixture.app))
     fixture.app = null
     const final = await fixture.session.launch()
     fixture.app = final.app
@@ -185,8 +190,7 @@ test('a managed pane outlives a dropped SSH link and a frozen host', async (// o
 {}, testInfo) => {
   test.setTimeout(15 * 60_000)
   await withManagedHost(testInfo, async (fixture) => {
-    const { app, page, seeded } = await launchManagedWorkspace(fixture.session, fixture.host)
-    fixture.app = app
+    const { page, seeded } = await launchManagedWorkspace(fixture)
     const tabId = await openTerminalTab(page, seeded.worktreeId)
     const marker = await echoMarker(page, tabId, 'FAULT_MARKER')
 
