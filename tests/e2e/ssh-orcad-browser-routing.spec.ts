@@ -6,9 +6,10 @@ import { createRestartSession } from './helpers/orca-restart'
 import { waitForSessionReady, waitForStartupWorktreeRefresh } from './helpers/store'
 import {
   cleanupDockerSshRelayTarget,
+  DOCKER_SSH_RELAY_REMOTE_REPO_PATH,
   startDockerSshRelayTarget
 } from './helpers/docker-ssh-relay-target'
-import { connectDockerSshRelayTarget } from './helpers/docker-ssh-relay-connection'
+import { seedRelayEraProfile } from './helpers/orcad-upgrade-profile'
 import {
   startSshRemoteOnlyBrowserFixture,
   readSshRemoteOnlyRequests,
@@ -17,7 +18,8 @@ import {
   SSH_REMOTE_ONLY_COOKIE_VALUE
 } from './helpers/ssh-remote-only-browser-fixture'
 import { createRetentionFixtureDirectory } from './helpers/host-created-terminal-retention-oracle'
-import { managedServer, reconnect } from './helpers/orcad-convert-flow'
+import { toSshExecutionHostId } from '../../src/shared/execution-host'
+import { reconnect } from './helpers/orcad-convert-flow'
 import { navigateGuest } from './helpers/browser-split-guest-probes'
 
 const TEMPLATE = process.env.ORCA_E2E_ORCAD_CONVERT_TEMPLATE
@@ -38,10 +40,6 @@ async function guestMarker(page: Page, tabId: string): Promise<unknown> {
 
 test('retained and new browser tabs keep SSH routing and login cookies after managed conversion', async (// oxlint-disable-next-line no-empty-pattern -- Owns app launch.
 {}, testInfo) => {
-  test.fixme(
-    true,
-    'Its relay era came from a template-less connect, which now refuses the host; seed it from a profile instead'
-  )
   test.setTimeout(5 * 60_000)
   const target = startDockerSshRelayTarget(testInfo)
   const scratch = createRetentionFixtureDirectory()
@@ -50,45 +48,53 @@ test('retained and new browser tabs keep SSH routing and login cookies after man
   let app: ElectronApplication | null = null
   try {
     startSshRemoteOnlyBrowserFixture(target)
+    // The first launch only creates the profile the relay-era host is saved into.
+    const first = await session.launch()
+    await waitForSessionReady(first.page)
+    await session.close(first.app)
+    const remote = seedRelayEraProfile(
+      session.userDataDir,
+      {
+        label: `orcad browser routing E2E ${Date.now()}`,
+        host: target.host,
+        port: target.port,
+        username: 'root',
+        identityFile: target.identityFile,
+        identitiesOnly: true,
+        relayGracePeriodSeconds: 1
+      },
+      { repoPath: DOCKER_SSH_RELAY_REMOTE_REPO_PATH, folderPath: '/tmp' }
+    )
     const launched = await session.launch()
     app = launched.app
     const page = launched.page
     await waitForSessionReady(page)
-    const remote = await connectDockerSshRelayTarget(page, target, { seedInitialTab: false })
-    expect(await managedServer(page, remote.targetId)).toMatchObject({ kind: 'relay' })
+    // The browser tab a relay-era build left open on the saved host, never connected this launch.
     const tabId = await page.evaluate(
       ({ worktreeId, url }) => {
         const state = window.__store?.getState()
         if (!state) {
           throw new Error('Missing store')
         }
-        const tab = state.createBrowserTab(worktreeId, url, {
+        return state.createBrowserTab(worktreeId, url, {
           title: 'Retained browser',
           activate: true
-        })
-        for (const terminal of state.tabsByWorktree[worktreeId] ?? []) {
-          state.closeTab(terminal.id)
-        }
-        return tab.id
+        }).id
       },
       { worktreeId: remote.worktreeId, url: `${SSH_REMOTE_ONLY_ORIGIN}/login` }
     )
-    await expect.poll(() => guestMarker(page, tabId), { timeout: 60_000 }).toBe('login-marker')
-    await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/echo/before`)
-    const cookieMarker = `cookie:${SSH_REMOTE_ONLY_COOKIE_NAME}=${SSH_REMOTE_ONLY_COOKIE_VALUE}`
-    await expect.poll(() => guestMarker(page, tabId), { timeout: 30_000 }).toBe(cookieMarker)
-    await page.screenshot({ path: testInfo.outputPath('browser-before-conversion.png') })
-    const partitionBefore = await page
-      .locator(`[data-browser-overlay-tab-id="${tabId}"] webview`)
-      .getAttribute('partition')
-    expect(partitionBefore).toMatch(/^persist:/)
     await expect
       .poll(
         () =>
-          page.evaluate((id) => window.api.pty.listSessions({ connectionId: id }), remote.targetId),
-        { timeout: 30_000 }
+          page.evaluate(
+            async ({ hostId, tabId }) =>
+              JSON.stringify(await window.api.session.get(hostId)).includes(tabId),
+            { hostId: toSshExecutionHostId(remote.targetId), tabId }
+          ),
+        { timeout: 30_000, message: 'the retained browser tab never reached the host session' }
       )
-      .toEqual([])
+      .toBe(true)
+    const cookieMarker = `cookie:${SSH_REMOTE_ONLY_COOKIE_NAME}=${SSH_REMOTE_ONLY_COOKIE_VALUE}`
     cpSync(TEMPLATE!, template, { recursive: true })
     const server = await reconnect(page, remote.targetId)
     console.log('[browser-conversion-connect]', server)
@@ -131,7 +137,18 @@ test('retained and new browser tabs keep SSH routing and login cookies after man
       return tab?.id ?? null
     }, remote.worktreeId)
     expect(retained).toBe(tabId)
-    await expect.poll(() => guestMarker(page, tabId), { timeout: 30_000 }).toBe(cookieMarker)
+    // The retained tab routes through the host: its login page sets the cookie later tabs share.
+    // It last loaded while the host was unreachable, so it may show an error page until reloaded.
+    await expect(async () => {
+      if ((await guestMarker(page, tabId)) !== 'login-marker') {
+        await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/login`)
+      }
+      expect(await guestMarker(page, tabId)).toBe('login-marker')
+    }).toPass({ timeout: 60_000 })
+    const partitionBefore = await page
+      .locator(`[data-browser-overlay-tab-id="${tabId}"] webview`)
+      .getAttribute('partition')
+    expect(partitionBefore).toMatch(/^persist:/)
     await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/echo/retained`)
     await expect.poll(() => guestMarker(page, tabId), { timeout: 30_000 }).toBe(cookieMarker)
     expect(readSshRemoteOnlyRequests(target)).toContainEqual({

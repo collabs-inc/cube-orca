@@ -15,6 +15,7 @@ import { mutateStoppedProfileState } from './persisted-profile-state'
 
 export type RelayEraProfile = {
   targetId: string
+  repoId: string
   worktreeId: string
   repoPath: string
   folderPath: string
@@ -186,6 +187,7 @@ export function seedRelayEraProfile(
   })
   return {
     targetId,
+    repoId: repo.id,
     worktreeId,
     repoPath: paths.repoPath,
     folderPath: paths.folderPath,

@@ -1,46 +1,27 @@
 import { cpSync, rmSync } from 'node:fs'
 import path from 'node:path'
-import type { ElectronApplication, Page } from '@stablyai/playwright-test'
+import type { ElectronApplication } from '@stablyai/playwright-test'
 import { expect, test } from './helpers/orca-app'
 import { createRestartSession } from './helpers/orca-restart'
 import { waitForSessionReady } from './helpers/store'
 import {
   cleanupDockerSshRelayTarget,
+  DOCKER_SSH_RELAY_REMOTE_REPO_PATH,
   startDockerSshRelayTarget
 } from './helpers/docker-ssh-relay-target'
-import { connectDockerSshRelayTarget } from './helpers/docker-ssh-relay-connection'
+import { seedRelayEraProfile } from './helpers/orcad-upgrade-profile'
 import {
   startSshRemoteOnlyBrowserFixture,
-  SSH_REMOTE_ONLY_ORIGIN,
-  SSH_REMOTE_ONLY_COOKIE_NAME,
-  SSH_REMOTE_ONLY_COOKIE_VALUE
+  SSH_REMOTE_ONLY_ORIGIN
 } from './helpers/ssh-remote-only-browser-fixture'
 import { createRetentionFixtureDirectory } from './helpers/host-created-terminal-retention-oracle'
-import { managedServer, reconnect, serverCall } from './helpers/orcad-convert-flow'
-import { navigateGuest } from './helpers/browser-split-guest-probes'
+import { reconnect, serverCall } from './helpers/orcad-convert-flow'
 
 const TEMPLATE = process.env.ORCA_E2E_ORCAD_CONVERT_TEMPLATE
 test.skip(!TEMPLATE || process.env.ORCA_E2E_SSH_DOCKER !== '1', 'Needs Docker and server template')
 
-async function guestMarker(page: Page, tabId: string): Promise<unknown> {
-  return page.evaluate(async (id) => {
-    const guest = document.querySelector<Electron.WebviewTag>(
-      `[data-browser-overlay-tab-id="${id}"] webview`
-    )
-    try {
-      return await guest?.executeJavaScript('document.querySelector("#marker")?.textContent')
-    } catch {
-      return null
-    }
-  }, tabId)
-}
-
 test('an unavailable browser on a responding managed host does not report a server outage', async (// oxlint-disable-next-line no-empty-pattern -- Owns app launch.
 {}, testInfo) => {
-  test.fixme(
-    true,
-    'Its relay era came from a template-less connect, which now refuses the host; seed it from a profile instead'
-  )
   test.setTimeout(5 * 60_000)
   const target = startDockerSshRelayTarget(testInfo)
   const scratch = createRetentionFixtureDirectory()
@@ -49,6 +30,23 @@ test('an unavailable browser on a responding managed host does not report a serv
   let app: ElectronApplication | null = null
   try {
     startSshRemoteOnlyBrowserFixture(target)
+    // The first launch only creates the profile the relay-era host is saved into.
+    const first = await session.launch()
+    await waitForSessionReady(first.page)
+    await session.close(first.app)
+    const remote = seedRelayEraProfile(
+      session.userDataDir,
+      {
+        label: `orcad browser status E2E ${Date.now()}`,
+        host: target.host,
+        port: target.port,
+        username: 'root',
+        identityFile: target.identityFile,
+        identitiesOnly: true,
+        relayGracePeriodSeconds: 1
+      },
+      { repoPath: DOCKER_SSH_RELAY_REMOTE_REPO_PATH, folderPath: '/tmp' }
+    )
     const launched = await session.launch()
     app = launched.app
     const page = launched.page
@@ -58,37 +56,6 @@ test('an unavailable browser on a responding managed host does not report a serv
       }
     })
     await waitForSessionReady(page)
-    const remote = await connectDockerSshRelayTarget(page, target, { seedInitialTab: false })
-    expect(await managedServer(page, remote.targetId)).toMatchObject({ kind: 'relay' })
-    const tabId = await page.evaluate(
-      ({ worktreeId, url }) => {
-        const state = window.__store?.getState()
-        if (!state) {
-          throw new Error('Missing store')
-        }
-        const tab = state.createBrowserTab(worktreeId, url, {
-          title: 'Retained browser',
-          activate: true
-        })
-        for (const terminal of state.tabsByWorktree[worktreeId] ?? []) {
-          state.closeTab(terminal.id)
-        }
-        return tab.id
-      },
-      { worktreeId: remote.worktreeId, url: `${SSH_REMOTE_ONLY_ORIGIN}/login` }
-    )
-    await expect.poll(() => guestMarker(page, tabId), { timeout: 60_000 }).toBe('login-marker')
-    await navigateGuest(page, tabId, `${SSH_REMOTE_ONLY_ORIGIN}/echo/before`)
-    const cookieMarker = `cookie:${SSH_REMOTE_ONLY_COOKIE_NAME}=${SSH_REMOTE_ONLY_COOKIE_VALUE}`
-    await expect.poll(() => guestMarker(page, tabId), { timeout: 30_000 }).toBe(cookieMarker)
-    await page.screenshot({ path: testInfo.outputPath('browser-before-conversion.png') })
-    await expect
-      .poll(
-        () =>
-          page.evaluate((id) => window.api.pty.listSessions({ connectionId: id }), remote.targetId),
-        { timeout: 30_000 }
-      )
-      .toEqual([])
     cpSync(TEMPLATE!, template, { recursive: true })
     const server = await reconnect(page, remote.targetId)
     console.log('[browser-conversion-connect]', server)
@@ -117,7 +84,7 @@ test('an unavailable browser on a responding managed host does not report a serv
         { timeout: 60_000 }
       )
       .toMatch(/^runtime:/)
-    // Retained desktop pages stay local after conversion; place this one on the managed host.
+    // A browser placed on the managed host, which has no browser backend.
     const remoteTabId = await page.evaluate(
       ({ worktreeId, environmentId, url }) => {
         const state = window.__store?.getState()
@@ -144,7 +111,6 @@ test('an unavailable browser on a responding managed host does not report a serv
         url: `${SSH_REMOTE_ONLY_ORIGIN}/login`
       }
     )
-    expect(remoteTabId).not.toBe(tabId)
     const notice = page.getByTestId('remote-browser-stream-error')
     await expect(notice).toBeVisible({ timeout: 30_000 })
     await page.screenshot({ path: testInfo.outputPath('browser-service-status.png') })

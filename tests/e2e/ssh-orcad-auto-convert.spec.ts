@@ -333,10 +333,6 @@ function connectOnce(page: Page, targetId: string): Promise<string> {
 test('reconnect restores the managed host name after its conversion catalog fails', async ({
   testRepoPath
 }, testInfo) => {
-  test.fixme(
-    true,
-    'Its relay era came from a template-less connect, which now refuses the host; seed it from a profile instead'
-  )
   test.skip(HOST !== 'docker', 'Catalog fault injection uses the isolated Linux Docker host')
   test.setTimeout(180_000)
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'orca-catalog-retry-'))
@@ -356,13 +352,12 @@ test('reconnect restores the managed host name after its conversion catalog fail
       repoPath: host.remoteRepoPath,
       folderPath: host.remoteFolderPath
     })
-    const relay = await session.launch()
-    app = relay.app
-    const page = relay.page
+    // The saved profile is the relay era: no connect has run, so the first one converts.
+    const upgraded = await session.launch()
+    app = upgraded.app
+    const page = upgraded.page
     await waitForSessionReady(page)
     await page.evaluate(() => window.__store!.getState().setGroupBy('none'))
-    await reconnect(page, seeded.targetId)
-    await expect.poll(() => managedServer(page, seeded.targetId)).toMatchObject({ kind: 'relay' })
 
     // Fail the local catalog IPC during a real SSH migration; healing restores its production handler.
     await app.evaluate(({ ipcMain }) => {
