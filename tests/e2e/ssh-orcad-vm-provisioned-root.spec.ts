@@ -123,7 +123,8 @@ test('adopts a recipe-provisioned SSH root without creating a linked worktree', 
         { timeout: 30_000 }
       )
       .toBe(false)
-    expect(() => execDockerSshRelayTargetCommand(target, 'true')).toThrow()
+    const destroyed = target
+    expect(() => execDockerSshRelayTargetCommand(destroyed, 'true')).toThrow()
   } finally {
     cleanupDockerSshRelayTarget(target)
     rmSync(sourceRepo, { recursive: true, force: true })
@@ -137,7 +138,7 @@ async function addRecipeRepo(page: Parameters<typeof waitForSessionReady>[0], re
       throw new Error(result.error)
     }
     const store = window.__store!
-    await store.getState().fetchRepos()
+    await store.getState().fetchRepos({ runtimeEnvironmentId: null })
     await store.getState().updateSettings({ experimentalEphemeralVms: true })
     store.getState().setActiveRepo(result.repo.id)
     return result.repo.id
