@@ -115,7 +115,8 @@ describe("agents for a project on a paired server's SSH host", () => {
     )
 
     expect(result.current.isRemote).toBe(false)
-    expect(result.current.connectionId).toBeNull()
+    // Attachment uploads still name the worktree's real host.
+    expect(result.current.connectionId).toBe('ssh-dike')
     expect(result.current.runtimeEnvironmentId).toBe('env-1')
   })
 })
