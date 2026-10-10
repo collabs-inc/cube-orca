@@ -9,7 +9,7 @@ import {
   readRegisteredSettings,
   restoredClickChoice,
   settingsWindowSend
-} from '../../../../main/ipc/settings-read-rollback-fixture'
+} from '../../../../main/ipc/__mocks__/settings-read-rollback-fixture'
 import { createTestStore } from './store-test-helpers'
 import { registerSettingsAndSidebarIpcBridge } from '../../hooks/ipc-events/settings-sidebar-ipc-bridge'
 import { terminalLinkClickBehaviorFor } from '../../components/terminal-pane/terminal-link-click-behavior'

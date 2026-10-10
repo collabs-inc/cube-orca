@@ -1,9 +1,9 @@
 import { beforeEach, vi } from 'vitest'
-import type { GlobalSettings } from '../../shared/global-settings-types'
+import type { GlobalSettings } from '../../../shared/global-settings-types'
 import {
   createWorkerMaintenanceFixture,
   maintenanceBarrier
-} from '../persistence/loading-store/profile-state-maintenance-fixture'
+} from '../../persistence/loading-store/profile-state-maintenance-fixture'
 
 type SettingsHandler = (
   event?: { sender: { id: number } },
@@ -26,33 +26,33 @@ vi.mock('electron', () => ({
   ipcMain: { handle: handleMock, on: vi.fn() },
   nativeTheme: { themeSource: 'system' }
 }))
-vi.mock('../telemetry/client', () => ({ track: vi.fn() }))
-vi.mock('../telemetry/cohort-classifier', () => ({
+vi.mock('../../telemetry/client', () => ({ track: vi.fn() }))
+vi.mock('../../telemetry/cohort-classifier', () => ({
   getCohortAtEmit: () => ({ nth_repo_added: 2 })
 }))
-vi.mock('../ssh/ssh-config-parser', () => ({
+vi.mock('../../ssh/ssh-config-parser', () => ({
   loadUserSshConfig: () => ({ hosts: [] }),
   sshConfigHostsToTargets: () => []
 }))
-vi.mock('../ghostty/index', () => ({ previewGhosttyImport: vi.fn() }))
-vi.mock('../warp-themes', () => ({ previewWarpThemeImport: vi.fn() }))
-vi.mock('../network/proxy-settings', () => ({ applyElectronProxySettings: vi.fn() }))
-vi.mock('../browser/browser-session-proxy', () => ({ applyBrowserSessionProxies: vi.fn() }))
-vi.mock('../browser/browser-session-registry', () => ({
+vi.mock('../../ghostty/index', () => ({ previewGhosttyImport: vi.fn() }))
+vi.mock('../../warp-themes', () => ({ previewWarpThemeImport: vi.fn() }))
+vi.mock('../../network/proxy-settings', () => ({ applyElectronProxySettings: vi.fn() }))
+vi.mock('../../browser/browser-session-proxy', () => ({ applyBrowserSessionProxies: vi.fn() }))
+vi.mock('../../browser/browser-session-registry', () => ({
   browserSessionRegistry: { listProfiles: () => [] }
 }))
-vi.mock('../app-icon', () => ({ applyAppIcon: vi.fn() }))
-vi.mock('../ai-vault-search/session-search-enablement', () => ({
+vi.mock('../../app-icon', () => ({ applyAppIcon: vi.fn() }))
+vi.mock('../../ai-vault-search/session-search-enablement', () => ({
   applySessionSearchSettingsChange: vi.fn()
 }))
-vi.mock('../agent-hooks/managed-agent-hook-controls', () => ({
+vi.mock('../../agent-hooks/managed-agent-hook-controls', () => ({
   applyAgentStatusHooksEnabled: vi.fn()
 }))
-vi.mock('../worktree-root-preparation', () => ({ prepareLocalWorktreeRootsForRepos: vi.fn() }))
-vi.mock('../menu/register-app-menu', () => ({ rebuildAppMenu: vi.fn() }))
-vi.mock('../i18n/main-i18n', () => ({ setMainUiLanguage: vi.fn() }))
+vi.mock('../../worktree-root-preparation', () => ({ prepareLocalWorktreeRootsForRepos: vi.fn() }))
+vi.mock('../../menu/register-app-menu', () => ({ rebuildAppMenu: vi.fn() }))
+vi.mock('../../i18n/main-i18n', () => ({ setMainUiLanguage: vi.fn() }))
 
-import { registerSettingsHandlers } from './settings'
+import { registerSettingsHandlers } from '../settings'
 export { settingsWindowSend, settingsOriginSend }
 export const restoredClickChoice = {
   terminalLinkClickBehavior: 'none',

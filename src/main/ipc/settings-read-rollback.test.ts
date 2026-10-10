@@ -7,7 +7,7 @@ import {
   restoredClickChoice,
   settingsOriginSend,
   settingsWindowSend
-} from './settings-read-rollback-fixture'
+} from './__mocks__/settings-read-rollback-fixture'
 
 it.each([
   { name: 'click choice', updates: pendingClickChoice, restored: restoredClickChoice },
