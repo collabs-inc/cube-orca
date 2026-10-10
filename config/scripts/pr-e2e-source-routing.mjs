@@ -191,7 +191,8 @@ export const PR_E2E_SOURCE_ROUTES = [
     id: 'ssh.orcad-journeys',
     specs: [
       'tests/e2e/ssh-orcad-terminal-journeys.spec.ts',
-      'tests/e2e/ssh-orcad-workspace-tools.spec.ts'
+      'tests/e2e/ssh-orcad-workspace-tools.spec.ts',
+      'tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts'
     ],
     matches: (file) =>
       /^tests\/e2e\/helpers\/(?:orcad-managed-workspace|orcad-convert-(?:flow|host)|orcad-upgrade-profile|paired-host-terminal|terminal-workspace-root-link)\.ts$/.test(

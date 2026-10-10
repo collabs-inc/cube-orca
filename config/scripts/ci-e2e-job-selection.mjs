@@ -74,7 +74,8 @@ export const ORCAD_TERMINAL_ROOT_OWNER_E2E_SPEC = 'tests/e2e/ssh-orcad-terminal-
 // Run in their own job, which builds the template they need.
 export const ORCAD_JOURNEY_E2E_SPECS = [
   'tests/e2e/ssh-orcad-terminal-journeys.spec.ts',
-  'tests/e2e/ssh-orcad-workspace-tools.spec.ts'
+  'tests/e2e/ssh-orcad-workspace-tools.spec.ts',
+  'tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts'
 ]
 export const DEDICATED_E2E_SPECS = [
   ...DOCKER_SSH_E2E_SPECS,

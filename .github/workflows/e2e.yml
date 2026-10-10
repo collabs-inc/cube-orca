@@ -365,7 +365,8 @@ jobs:
               . != "tests/e2e/ssh-orcad-browser-drop-owner.spec.ts" and
               . != "tests/e2e/ssh-orcad-terminal-root-owner.spec.ts" and
               . != "tests/e2e/ssh-orcad-terminal-journeys.spec.ts" and
-              . != "tests/e2e/ssh-orcad-workspace-tools.spec.ts"
+              . != "tests/e2e/ssh-orcad-workspace-tools.spec.ts" and
+              . != "tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts"
             )' <<<"$TEST_FILES_JSON" > "$RUNNER_TEMP/general-e2e-specs"
           fi
           mapfile -t TEST_FILES < "$RUNNER_TEMP/general-e2e-specs"
@@ -649,7 +650,7 @@ jobs:
   orcad-journeys-docker:
     name: ssh journeys on managed orcad (Docker)
     needs: [build, prepare-native-cache]
-    if: inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/ssh-orcad-terminal-journeys.spec.ts') || contains(inputs.test_files, 'tests/e2e/ssh-orcad-workspace-tools.spec.ts')
+    if: inputs.test_files == '' || contains(inputs.test_files, 'tests/e2e/ssh-orcad-terminal-journeys.spec.ts') || contains(inputs.test_files, 'tests/e2e/ssh-orcad-workspace-tools.spec.ts') || contains(inputs.test_files, 'tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts')
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -683,7 +684,7 @@ jobs:
           ORCA_E2E_FORWARD_APP_LOGS: '1'
         run: |
           export ORCA_E2E_ORCAD_CONVERT_TEMPLATE="$RUNNER_TEMP/orcad-convert-template"
-          xvfb-run --auto-servernum bash .github/scripts/e2e-with-window-manager.sh pnpm exec playwright test --config tests/playwright.config.ts tests/e2e/ssh-orcad-terminal-journeys.spec.ts tests/e2e/ssh-orcad-workspace-tools.spec.ts --project=electron-headless --workers=1
+          xvfb-run --auto-servernum bash .github/scripts/e2e-with-window-manager.sh pnpm exec playwright test --config tests/playwright.config.ts tests/e2e/ssh-orcad-terminal-journeys.spec.ts tests/e2e/ssh-orcad-workspace-tools.spec.ts tests/e2e/ssh-orcad-vm-provisioned-root.spec.ts --project=electron-headless --workers=1
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

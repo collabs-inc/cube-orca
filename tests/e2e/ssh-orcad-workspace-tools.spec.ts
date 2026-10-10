@@ -1,6 +1,6 @@
 /**
- * Workspace tools on an orcad-managed SSH host: Quick Open over a monorepo-sized tree, the Ports
- * panel and an SSH port forward, an image outside the workspace opened from a terminal link, and
+ * Workspace tools on an orcad-managed SSH host: Quick Open over a monorepo-sized tree, the host's
+ * port scan and an SSH port forward, an image outside the workspace opened from a terminal link, and
  * agent status reported from a remote terminal.
  */
 import { expect, test } from './helpers/orca-app'
@@ -11,6 +11,7 @@ import { reserveLocalPort } from './helpers/ssh-port-forward-snapshot-barrier'
 import { openTerminalWorkspaceRootLink } from './helpers/terminal-workspace-root-link'
 import {
   echoMarker,
+  expectTerminalAnswers,
   launchManagedWorkspace,
   openTerminalTab,
   ORCAD_TEMPLATE,
@@ -58,32 +59,31 @@ test('Quick Open finds a file in a monorepo-sized managed workspace', async (// 
   })
 })
 
-test('the Ports panel lists a managed host listener, and an SSH forward reaches it across a reconnect', async (// oxlint-disable-next-line no-empty-pattern -- Owns its app launch through a restart session.
+test('a managed host reports its listener, and an SSH forward reaches it across a reconnect', async (// oxlint-disable-next-line no-empty-pattern -- Owns its app launch through a restart session.
 {}, testInfo) => {
   test.setTimeout(10 * 60_000)
   const remotePort = 7860
   const marker = `ORCA_FORWARD_${Date.now()}`
   const reservation = await reserveLocalPort()
   await withManagedHost(testInfo, async (fixture) => {
-    const { app, page, seeded } = await launchManagedWorkspace(fixture.session, fixture.host)
+    const { app, page, seeded, environmentId } = await launchManagedWorkspace(
+      fixture.session,
+      fixture.host
+    )
     fixture.app = app
     const script = `require('node:http').createServer((_q, r) => r.end(${JSON.stringify(marker)})).listen(${remotePort}, '127.0.0.1')`
     // Started from the workspace so the panel attributes it to this workspace.
     fixture.host.exec!(
       `cd ${shellQuote(fixture.host.remoteRepoPath)} && nohup node -e ${shellQuote(script)} >/tmp/orca-http.log 2>&1 < /dev/null &`
     )
-    await page.evaluate(() => {
-      const state = window.__store?.getState()
-      state?.setRightSidebarTab('ports')
-      state?.setRightSidebarOpen(true)
-    })
-    await expect(async () => {
-      await page.getByRole('button', { name: 'Refresh Ports' }).last().click()
-      await expect(page.getByText(`:${remotePort}`, { exact: true })).toBeVisible({
-        timeout: 10_000
-      })
-    }).toPass({ timeout: 90_000 })
-    await page.screenshot({ path: testInfo.outputPath('managed-ports-panel.png') })
+    // The scan the Ports panel shows for a workspace on this host.
+    await expect
+      .poll(
+        async () =>
+          JSON.stringify(await callEnvironment(page, environmentId, 'workspacePorts.scan', {})),
+        { timeout: 60_000, message: 'the managed host never reported the listener' }
+      )
+      .toContain(`"port":${remotePort}`)
 
     const localPort = reservation.port
     await reservation.release()
@@ -118,7 +118,8 @@ test('a terminal link opens an image outside the managed workspace', async (// o
     )
     const { app, page, seeded } = await launchManagedWorkspace(fixture.session, fixture.host)
     fixture.app = app
-    await openTerminalTab(page, seeded.worktreeId)
+    // A link is only clickable once the shell has printed it, so wait for one that answers.
+    await expectTerminalAnswers(page, await openTerminalTab(page, seeded.worktreeId))
     await openTerminalWorkspaceRootLink(page, testInfo, imagePath)
     const popover = page.locator('[data-terminal-link-action-popover]')
     await expect(popover).toBeVisible()
