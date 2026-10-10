@@ -49,8 +49,9 @@ export const SshTargetAdd = z.object({ target: SshEditableTargetInput })
 /** Replaces the target's editable fields; an omitted optional field is cleared. */
 export const SshTargetUpdate = SshTarget.extend({ target: SshEditableTargetInput })
 
+// Why untrimmed: a remote folder name may legitimately end in a space.
 export const SshBrowseDir = SshTarget.extend({
-  dirPath: boundedText(4096)
+  dirPath: z.string().min(1).max(4096)
 })
 
 export const RepoAddRemote = z.object({
