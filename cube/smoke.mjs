@@ -167,8 +167,10 @@ try {
     const targetUrl = `http://127.0.0.1:${browserTarget.address().port}/`
     await page.getByRole('button', { name: 'New tab', exact: true }).click()
     await page.getByText('New Browser Tab', { exact: false }).click()
-    await page.getByRole('combobox').fill(targetUrl)
-    await page.getByRole('combobox').press('Enter')
+    await page.keyboard.press('Escape')
+    const address = page.getByTestId('remote-browser-pane').getByRole('combobox')
+    await address.fill(targetUrl)
+    await address.press('Enter')
     await page.getByTestId('remote-browser-frame').waitFor({ timeout: 30000 })
     const tabHandle = await page.waitForFunction(
       async (url) => {
