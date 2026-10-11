@@ -178,6 +178,25 @@ try {
     console.log('PASS: browser picker uploads binary, empty and Unicode files without overwriting')
 
     await page.removeLocatorHandler(page.getByRole('dialog'))
+    await page.getByRole('button', { name: /Resource Manager/ }).click()
+    await page.getByRole('button', { name: 'Clean up workspaces', exact: true }).click()
+    const cleanup = page.getByRole('dialog')
+    await cleanup
+      .getByRole('heading', { name: 'Delete Inactive Workspaces', exact: true })
+      .waitFor()
+    await cleanup.getByRole('button', { name: /^Open cube-smoke on/ }).waitFor({ timeout: 30000 })
+    await cleanup.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await page.waitForFunction(() => {
+      const refresh = document.querySelector('[role="dialog"] button[aria-label="Refresh"]')
+      return refresh && !refresh.disabled
+    })
+    assert.ok(!(await cleanup.innerText()).includes('Cannot read properties'))
+    assert.equal(await cleanup.getByRole('button', { name: /^Remove main on/ }).count(), 0)
+    await cleanup.getByRole('button', { name: 'Close', exact: true }).click()
+    console.log(
+      'PASS: cleanup dialog lists real workspaces, refreshes, and protects the primary workspace'
+    )
+
     await page.getByRole('button', { name: 'Onboarding checklist' }).click()
     await page.getByRole('button', { name: /Give agents Orca skills/ }).click()
     await page.getByRole('button', { name: 'Install skills', exact: true }).click()

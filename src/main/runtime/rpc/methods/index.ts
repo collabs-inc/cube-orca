@@ -1,3 +1,4 @@
+import { WORKSPACE_CLEANUP_METHODS } from './workspace-cleanup'
 import { STATUS_METHODS } from './status'
 import { ORCAD_TERMINAL_CENSUS_METHODS } from './orcad-terminal-census'
 import { ORCAD_MIGRATION_METHODS } from './orcad-migration'
@@ -110,6 +111,7 @@ export const ALL_RPC_METHODS = [
   ...MANAGED_SERVER_METHODS,
   ...SPEECH_METHODS,
   ...WORKSPACE_PORT_METHODS,
+  ...WORKSPACE_CLEANUP_METHODS,
   ...PLUGIN_METHODS,
   ...SKILL_METHODS,
   ...CLIPBOARD_METHODS,

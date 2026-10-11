@@ -1,3 +1,5 @@
+import { scanWorkspaceCleanup } from '../ipc/workspace-cleanup-scan'
+import type { WorkspaceCleanupScanArgs } from '../../shared/workspace-cleanup'
 import { installRuntimeLinearCommandSurface } from './runtime-linear-command-surface'
 import { OrcaRuntimeWithMigrationCatalog } from './orca-runtime-migration-catalog'
 import type { RuntimeCommandSurfaceHost } from './orca-runtime-core'
@@ -30,6 +32,10 @@ import type { RuntimeReferenceFindParams } from '../../shared/runtime-reference-
 import { getRepoExecutionHostId } from '../../shared/execution-host'
 
 class OrcaRuntimeService extends OrcaRuntimeWithMigrationCatalog {
+  scanWorkspaceCleanup(args: WorkspaceCleanupScanArgs, signal?: AbortSignal) {
+    return scanWorkspaceCleanup(this.requireStore(), args, { signal })
+  }
+
   private async selectReferenceCatalogWorkspace(selector: string, cwd?: string) {
     const catalog = listReferenceWorkspaces(
       this.requireStore(),

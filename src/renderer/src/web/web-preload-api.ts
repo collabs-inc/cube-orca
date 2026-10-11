@@ -1,3 +1,4 @@
+import { createWebWorkspaceCleanupApi } from './preload-api/web-workspace-cleanup-api'
 import { toRuntimeExecutionHostId } from '../../../shared/execution-host'
 import type { PreloadApi } from '../../../preload/api-types'
 import type { MemorySnapshot, StatsSummary } from '../../../shared/process-stats-types'
@@ -66,6 +67,7 @@ export function installWebPreloadApi(): void {
 
 function createWebPreloadApi(): Partial<PreloadApi> {
   return {
+    workspaceCleanup: createWebWorkspaceCleanupApi(),
     ...createWebAppApi(),
     ...createWebStarNagApi(),
     ...createWebPlatformApi(),
