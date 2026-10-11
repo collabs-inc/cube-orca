@@ -71,7 +71,10 @@ export async function launchOrca({
   try {
     const readiness = await new Promise((resolve, reject) => {
       const lines = createInterface({ input: child.stdout })
-      const timer = setTimeout(() => { cleanup(); reject(Error('Orca did not become ready in time')) }, timeoutMs)
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(Error('Orca did not become ready in time'))
+      }, timeoutMs)
       const cleanup = () => {
         clearTimeout(timer)
         lines.close()

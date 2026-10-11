@@ -1,0 +1,8 @@
+{
+  "name": "Orca",
+  "description": "Orca’s web workspace with repositories, worktrees, agents, and terminals on your Cube machine.",
+  "icon": "resources/logo.svg",
+  "platforms": ["linux"],
+  "install": "node cube/install.mjs",
+  "start": "exec cube/tools/node/bin/node cube/start.mjs"
+}

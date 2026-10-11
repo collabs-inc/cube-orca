@@ -12,7 +12,8 @@ process.once('SIGINT', () => controller.abort())
 process.once('SIGTERM', () => controller.abort())
 try {
   const app = await launchOrca({
-    root, port,
+    root,
+    port,
     state: process.env.ORCA_CUBE_STATE_DIR || join(homedir(), '.orca', 'cube'),
     signal: controller.signal
   })

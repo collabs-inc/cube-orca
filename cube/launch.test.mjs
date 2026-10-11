@@ -72,13 +72,20 @@ test('failed and silent children never publish a working app', async (t) => {
   )
 })
 
-test('cancels startup without leaving its child running', async t => {
+test('cancels startup without leaving its child running', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'orca-abort-'))
   t.after(() => rm(root, { recursive: true, force: true }))
   const entry = join(root, 'fake.mjs')
   await writeFile(entry, 'setInterval(()=>{},1000)')
   const controller = new AbortController()
-  const pending = launchOrca({ root, entry, port: 0, state: join(root, 'state'), signal: controller.signal, timeoutMs: 2000 })
+  const pending = launchOrca({
+    root,
+    entry,
+    port: 0,
+    state: join(root, 'state'),
+    signal: controller.signal,
+    timeoutMs: 2000
+  })
   controller.abort()
   await assert.rejects(pending, /abort/i)
 })
