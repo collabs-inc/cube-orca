@@ -276,12 +276,16 @@ export function buildAutomationHostCatalog(
       }
     })
   ]
-  const entries = orderAutomationHostCatalogEntries(contexts.flatMap(projectAuthority))
+  const enabledContexts = contexts.filter(
+    (context) => input.desktopEnabled !== false || context.authority.kind !== 'desktop'
+  )
+  const entries = orderAutomationHostCatalogEntries(enabledContexts.flatMap(projectAuthority))
   const byStableKey = new Map(entries.map((entry) => [entry.stableKey, entry]))
   return {
     entries,
     byStableKey,
     hydration: {
+      desktopEnabled: input.desktopEnabled !== false,
       runtimeCatalogSettled: input.runtimeCatalogSettled,
       desktopSshHydrated: input.desktop.ssh.targetsHydrated,
       runtimeSshHydratedByEnvironmentId: new Map(
@@ -289,12 +293,12 @@ export function buildAutomationHostCatalog(
       ),
       savedRuntimeEnvironmentIds: new Set(input.runtimes.map((runtime) => runtime.environmentId)),
       orphanSettledAuthorityKeys: new Set(
-        contexts
+        enabledContexts
           .filter((ctx) => ctx.orphanCount !== undefined)
           .map((ctx) => automationAuthorityCatalogKey(ctx.authority))
       ),
       unavailableAuthorityKeys: new Set(
-        contexts
+        enabledContexts
           .filter((ctx) => ctx.authorityHealth === 'unavailable')
           .map((ctx) => automationAuthorityCatalogKey(ctx.authority))
       )

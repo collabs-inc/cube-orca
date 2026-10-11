@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { resolveAutomationHostFilter } from './automation-host-filter-resolution'
 import { hostStableKey, ownerKey } from '../../../../shared/automation-owner-key'
 import { RUNTIME_OWNED_SSH_TARGET_ID_PREFIX } from '../../../../shared/execution-host'
 import {
@@ -57,6 +58,27 @@ function entryAt(catalog: AutomationHostCatalog, key: string): AutomationHostCat
   }
   return entry
 }
+
+it('web catalogs expose the paired server once without a phantom desktop authority', () => {
+  const catalog = buildAutomationHostCatalog(
+    buildInput({
+      desktopEnabled: false,
+      runtimes: [runtime()]
+    })
+  )
+  expect(catalog.entries.map((entry) => entry.stableRef.authority)).toEqual([
+    { kind: 'runtime', environmentId: 'env-1' }
+  ])
+  expect(
+    resolveAutomationHostFilter({
+      filter: {
+        kind: 'host',
+        host: { authority: { kind: 'desktop' }, selector: { kind: 'self' } }
+      },
+      catalog
+    }).status
+  ).toBe('removed')
+})
 
 const DESKTOP_SELF_KEY = hostStableKey({
   authority: { kind: 'desktop' },
