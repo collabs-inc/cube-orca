@@ -168,10 +168,13 @@ try {
     await page
       .getByRole('button', { name: 'Upload files', exact: true })
       .waitFor({ timeout: 30000 })
-    assert.deepEqual(await readFile(join(repoPath, 'download-proof copy.bin')), uploadBytes)
-    assert.deepEqual(await readFile(join(repoPath, 'download-proof.bin')), downloadBytes)
-    assert.equal((await readFile(join(repoPath, 'empty-upload.txt'))).length, 0)
-    assert.equal(await readFile(join(repoPath, 'unicode-upload.txt'), 'utf8'), 'Hello, Cube — 你好')
+    assert.deepEqual(await readFile(join(worktree.path, 'download-proof copy.bin')), uploadBytes)
+    assert.deepEqual(await readFile(join(worktree.path, 'download-proof.bin')), downloadBytes)
+    assert.equal((await readFile(join(worktree.path, 'empty-upload.txt'))).length, 0)
+    assert.equal(
+      await readFile(join(worktree.path, 'unicode-upload.txt'), 'utf8'),
+      'Hello, Cube — 你好'
+    )
     console.log('PASS: browser picker uploads binary, empty and Unicode files without overwriting')
 
     await page.removeLocatorHandler(page.getByRole('dialog'))
