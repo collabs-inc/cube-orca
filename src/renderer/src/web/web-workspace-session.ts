@@ -11,6 +11,8 @@ export function sanitizeWebRuntimeWorkspaceSession(
     // those remote handles in browser storage replays stale terminal/browser
     // selectors after a new pairing or host restart.
     activeRepoId: session.activeRepoId ?? null,
+    activeWorkspaceKey: session.activeWorkspaceKey ?? null,
+    activeWorkspaceExecutionHostId: session.activeWorkspaceExecutionHostId ?? null,
     activeWorktreeId: session.activeWorktreeId ?? null,
     browserUrlHistory: session.browserUrlHistory ?? defaults.browserUrlHistory,
     lastVisitedAtByWorktreeId: session.lastVisitedAtByWorktreeId

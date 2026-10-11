@@ -31,6 +31,8 @@ jobs:
           --config config/vitest.config.ts --maxWorkers=1
           src/renderer/src/web/web-preload-api-runtime-environment.test.ts
           src/renderer/src/web/web-preload-api-runtime-calls.test.ts
+          src/renderer/src/web/web-workspace-selection.test.ts
+          src/renderer/src/web/web-workspace-session.test.ts
           src/main/codex-cli/command.test.ts
           src/renderer/src/components/status-bar/mergeSnapshotAndSessions.test.ts
           src/renderer/src/components/status-bar/use-resource-usage-derived-model.test.tsx

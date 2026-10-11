@@ -10,8 +10,6 @@ import type {
   WorkspaceSessionState
 } from '../../../../shared/workspace-session-state-types'
 import { sanitizeWebRuntimeWorkspaceSession } from '../web-workspace-session'
-import { readLocalWebUIState } from './web-preferences-store'
-import { requireActiveEnvironmentOrNull } from './web-runtime-session'
 import { SESSION_STORAGE_KEY, readJson, writeJson } from './web-storage'
 
 export function sessionStorageKeyForHost(hostId?: string | null): string {
@@ -47,20 +45,11 @@ export function getStoredWorkspaceSession(hostId?: string | null): WorkspaceSess
       readJson(sessionStorageKeyForHost(resolvedHostId), getDefaultWorkspaceSession())
     )
   }
-  const localSession = sanitizeWebRuntimeWorkspaceSession(
+  // Remote handles are stripped by the sanitizer; selection belongs to this client
+  // and must survive reads used to merge unrelated patches.
+  return sanitizeWebRuntimeWorkspaceSession(
     readJson(SESSION_STORAGE_KEY, getDefaultWorkspaceSession())
   )
-  if (!requireActiveEnvironmentOrNull()) {
-    return localSession
-  }
-  const ui = readLocalWebUIState()
-  // Why: replaying browser-local terminal handles first creates stale remote PTYs; mirror host session-tabs instead.
-  return sanitizeWebRuntimeWorkspaceSession({
-    ...getDefaultWorkspaceSession(),
-    activeRepoId: ui.lastActiveRepoId,
-    activeWorktreeId: ui.lastActiveWorktreeId,
-    lastVisitedAtByWorktreeId: localSession.lastVisitedAtByWorktreeId
-  })
 }
 
 export function createWebWorkspaceSessionApi(): Partial<PreloadApi> {
