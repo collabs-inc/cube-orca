@@ -296,7 +296,8 @@ describe('runtime file client', () => {
 
     expect(runtimeEnvironmentCall.mock.calls.map((call) => call[0].method)).toEqual([
       'files.stat',
-      'files.stat'
+      'files.stat',
+      'files.delete'
     ])
     expect(runtimeEnvironmentCall).not.toHaveBeenCalledWith(
       expect.objectContaining({ method: 'files.commitUpload' })

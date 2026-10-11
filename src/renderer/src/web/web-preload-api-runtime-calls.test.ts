@@ -16,6 +16,106 @@ describe('web preload runtime calls', () => {
     vi.doUnmock('./web-runtime-client')
   })
 
+  it('refuses stale pairing and runtime expectations before dispatching mutations', async () => {
+    const call = vi
+      .fn()
+      .mockResolvedValue({ id: 'write', ok: true, result: {}, _meta: { runtimeId: 'runtime-1' } })
+    vi.doMock('./web-runtime-client', () => ({
+      WebRuntimeClient: class {
+        call = call
+        close(): void {}
+      }
+    }))
+    const globals = installBrowserGlobals('Linux')
+    writeStoredRuntimeEnvironment(globals.storage, 'web-server-a')
+    const { installWebPreloadApi } = await import('./web-preload-api')
+    installWebPreloadApi()
+    await globals.window.api.runtimeEnvironments.call({
+      selector: 'web-server-a',
+      method: 'status.get'
+    })
+    call.mockClear()
+    for (const expected of [
+      { expectedEnvironmentPairingRevision: 99 },
+      { expectedEnvironmentRuntimeId: 'replaced-runtime' }
+    ]) {
+      const result = await globals.window.api.runtimeEnvironments.call({
+        selector: 'web-server-a',
+        method: 'files.writeBase64Chunk',
+        params: {},
+        ...expected
+      })
+      expect(result).toMatchObject({ ok: false, error: { code: 'runtime_environment_changed' } })
+    }
+    expect(call).not.toHaveBeenCalled()
+    await globals.window.api.runtimeEnvironments.call({
+      selector: 'web-server-a',
+      method: 'files.writeBase64Chunk',
+      params: {},
+      expectedEnvironmentPairingRevision: 1,
+      expectedEnvironmentRuntimeId: 'runtime-1'
+    })
+    expect(call).toHaveBeenCalledTimes(1)
+  })
+
+  it('rechecks runtime identity when a queued mutation reaches dispatch', async () => {
+    let release!: () => void
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const call = vi.fn(async (method: string) => {
+      if (method.startsWith('block')) {
+        await blocked
+      }
+      return {
+        id: method,
+        ok: true,
+        result: {},
+        _meta: { runtimeId: method.startsWith('block') ? 'runtime-2' : 'runtime-1' }
+      }
+    })
+    vi.doMock('./web-runtime-client', () => ({
+      WebRuntimeClient: class {
+        call = call
+        close(): void {}
+      }
+    }))
+    const globals = installBrowserGlobals('Linux')
+    writeStoredRuntimeEnvironment(globals.storage, 'web-server-a')
+    const { installWebPreloadApi } = await import('./web-preload-api')
+    const { webRuntimeState } = await import('./preload-api/web-runtime-session')
+    installWebPreloadApi()
+    await globals.window.api.runtimeEnvironments.call({
+      selector: 'web-server-a',
+      method: 'status.get'
+    })
+    call.mockClear()
+    const blockers = Array.from({ length: 8 }, (_, i) =>
+      globals.window.api.runtime.call({ method: `block.${i}` })
+    )
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(8))
+    const queued = globals.window.api.runtimeEnvironments.call({
+      selector: 'web-server-a',
+      method: 'files.writeBase64Chunk',
+      params: {},
+      expectedEnvironmentRuntimeId: 'runtime-1'
+    })
+    if (!webRuntimeState.activeEnvironment) {
+      throw new Error('Missing runtime')
+    }
+    webRuntimeState.activeEnvironment = {
+      ...webRuntimeState.activeEnvironment,
+      runtimeId: 'runtime-2'
+    }
+    release()
+    await Promise.all(blockers)
+    await expect(queued).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'runtime_environment_changed' }
+    })
+    expect(call.mock.calls.some(([method]) => method === 'files.writeBase64Chunk')).toBe(false)
+  })
+
   it('resolves setup terminal directories on the paired runtime', async () => {
     const call = vi.fn().mockResolvedValue({
       id: 'cwd',
