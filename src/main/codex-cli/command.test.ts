@@ -38,6 +38,41 @@ describe('resolveCodexCommand', () => {
     delete process.env.Path
   })
 
+  it('resolves the real CLI behind Cube interactive wrappers', () => {
+    const root = makeCommandFixture('orca-cube-cli-')
+    const wrapperDir = join(root, 'cube-bin')
+    const realDir = join(root, 'agent-bin')
+    for (const name of ['codex', 'claude', 'opencode']) {
+      const wrapper = join(wrapperDir, name)
+      makeExecutable(wrapper)
+      writeFileSync(
+        wrapper,
+        '#!/bin/sh\n# Written by cubed (shell-wrappers.ts): interactive agent wrapper\nexec agent --extra-flag "$@"\n'
+      )
+      makeExecutable(join(realDir, name))
+    }
+    const options = {
+      platform: 'linux' as const,
+      pathEnv: [wrapperDir, realDir].join(delimiter),
+      homePath: root
+    }
+    expect(resolveCodexCommand(options)).toBe(join(realDir, 'codex'))
+    expect(resolveClaudeCommand(options)).toBe(join(realDir, 'claude'))
+    expect(resolveCliCommands(['codex', 'claude', 'opencode'], options)).toEqual(
+      new Map(['codex', 'claude', 'opencode'].map((name) => [name, join(realDir, name)]))
+    )
+  })
+
+  it('preserves user-authored CLI wrappers on PATH', () => {
+    const root = makeCommandFixture('orca-custom-cli-')
+    const wrapper = join(root, 'bin', 'codex')
+    makeExecutable(wrapper)
+    writeFileSync(wrapper, '#!/bin/sh\nexec /custom/codex "$@"\n')
+    expect(
+      resolveCodexCommand({ platform: 'linux', pathEnv: dirname(wrapper), homePath: root })
+    ).toBe(wrapper)
+  })
+
   it('prefers Codex already present on PATH', () => {
     const root = makeCommandFixture('orca-codex-command-')
     const pathDir = join(root, 'bin')

@@ -1,6 +1,7 @@
 import { accessSync, constants, existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { delimiter, dirname, isAbsolute, join } from 'node:path'
+import { isCubeInteractiveAgentWrapper } from './cube-interactive-agent-wrapper'
 import { getSystemCliInstallDirectories } from './system-cli-install-dirs'
 
 type ResolveCommandOptions = {
@@ -10,11 +11,9 @@ type ResolveCommandOptions = {
 }
 
 function getExecutableNames(platform: NodeJS.Platform, commandName: string): string[] {
-  if (platform === 'win32') {
-    return [`${commandName}.cmd`, `${commandName}.exe`, `${commandName}.bat`, commandName]
-  }
-
-  return [commandName]
+  return platform === 'win32'
+    ? [`${commandName}.cmd`, `${commandName}.exe`, `${commandName}.bat`, commandName]
+    : [commandName]
 }
 
 function splitPath(
@@ -62,7 +61,8 @@ function findFirstExecutable(
   for (const directory of directories) {
     for (const executableName of executableNames) {
       const candidate = join(directory, executableName)
-      if (isRunnableCommand(platform, candidate)) {
+      // Cube's hand-typed CLI wrappers inject flags that conflict with managed app-server probes.
+      if (isRunnableCommand(platform, candidate) && !isCubeInteractiveAgentWrapper(candidate)) {
         return candidate
       }
     }
