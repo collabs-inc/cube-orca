@@ -1,11 +1,69 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
+import {
+  accessSync,
+  statSync,
+  constants,
+  mkdirSync,
+  openSync,
+  readSync,
+  closeSync,
+  symlinkSync,
+  renameSync
+} from 'node:fs'
+
+function isCubeWrapper(path) {
+  let fd
+  try {
+    fd = openSync(path, 'r')
+    const header = Buffer.alloc(64)
+    readSync(fd, header, 0, header.length, 0)
+    return header.toString().startsWith('#!/bin/sh\n# Written by cubed (shell-wrappers.ts):')
+  } catch {
+    return false
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+function managedAgentPath(state, path) {
+  if (!path) return path
+  const directories = path.split(':').filter(Boolean)
+  const overrides = []
+  for (const agent of ['codex', 'claude', 'opencode']) {
+    const candidates = directories
+      .map((directory) => resolve(directory, agent))
+      .filter((candidate) => {
+        try {
+          accessSync(candidate, constants.X_OK)
+          return statSync(candidate).isFile()
+        } catch {
+          return false
+        }
+      })
+    if (!candidates.length || !isCubeWrapper(candidates[0])) continue
+    const executable = candidates.find((candidate) => !isCubeWrapper(candidate))
+    if (executable) overrides.push([agent, executable])
+  }
+  if (!overrides.length) return path
+  const directory = join(state, 'cli', 'bin')
+  mkdirSync(directory, { recursive: true, mode: 0o700 })
+  for (const [agent, executable] of overrides) {
+    const temporary = join(directory, `${agent}.${process.pid}`)
+    symlinkSync(executable, temporary)
+    renameSync(temporary, join(directory, agent))
+  }
+  // Orca re-prepends this CLI directory after login-shell startup files reset PATH.
+  // Keep Cube's URL openers in their original position; override only its agent wrappers.
+  return `${directory}:${path}`
+}
 
 export function electronServeEnvironment(root, state, display, inherited = process.env) {
   const env = {
     ...inherited,
     DISPLAY: display,
+    PATH: managedAgentPath(state, inherited.PATH),
     ORCA_DEV_USER_DATA_PATH: state,
     ORCA_SERVE_USER_DATA_PATH: state,
     ORCA_USER_DATA: state,

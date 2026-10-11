@@ -113,3 +113,29 @@ test(
     assert.throws(() => process.kill(app.pid, 0), /ESRCH/)
   }
 )
+
+test('prefers real agents while retaining Cube URL opener commands on PATH', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'orca-cube-path-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const wrapper = join(root, 'cube-bin'),
+    binaries = join(root, 'real-bin'),
+    state = join(root, 'state')
+  const { mkdir, readlink } = await import('node:fs/promises')
+  await mkdir(wrapper)
+  await mkdir(binaries)
+  await writeFile(
+    join(wrapper, 'codex'),
+    '#!/bin/sh\n# Written by cubed (shell-wrappers.ts): generated\n',
+    { mode: 0o755 }
+  )
+  await writeFile(join(binaries, 'codex'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+  const original = `${wrapper}:${binaries}:/usr/bin`
+  const env = electronServeEnvironment(root, state, ':44', { PATH: original })
+  assert.equal(env.PATH, `${state}/cli/bin:${original}`)
+  assert.equal(await readlink(join(state, 'cli/bin/codex')), join(binaries, 'codex'))
+  assert.equal(electronServeEnvironment(root, state, ':44', { PATH: original }).PATH, env.PATH)
+  assert.equal(
+    electronServeEnvironment(root, state, ':44', { PATH: '/custom:/usr/bin' }).PATH,
+    '/custom:/usr/bin'
+  )
+})
