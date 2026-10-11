@@ -1,5 +1,6 @@
 // Real repository/worktree/PTY acceptance through Cube's public WebSocket gateway.
 import assert from 'node:assert/strict'
+import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
@@ -22,7 +23,7 @@ const env = {
   ORCA_USER_DATA: join(home, 'state'),
   ORCA_BACKGROUND_LAUNCH: '1'
 }
-let app, pairing, worktree, terminal, browser, page
+let app, pairing, worktree, terminal, browser, page, browserTarget
 async function cli(args) {
   // Async is essential: this process also serves the gateway used by the CLI.
   const { stdout } = await exec(
@@ -34,10 +35,10 @@ async function cli(args) {
   assert.notEqual(data.ok, false, data.error?.message)
   return data.result
 }
-async function start(port = 0) {
+async function start(port = 0, runtime = 'electron') {
   app = await launchOrca({
     root,
-    entry: join(root, 'cube/electron.mjs'),
+    entry: join(root, runtime === 'node' ? 'out/orcad/orcad.js' : 'cube/electron.mjs'),
     port,
     state: env.ORCA_USER_DATA,
     env
@@ -72,7 +73,7 @@ try {
   await writeFile(join(repoPath, 'hello.txt'), 'Cube integration smoke\n')
   await exec('git', ['add', '.'], { cwd: repoPath, env })
   await exec('git', ['commit', '-m', 'fixture'], { cwd: repoPath, env })
-  await start()
+  await start(0, process.argv.includes('--migrate-node') ? 'node' : 'electron')
   const repo = (await cli(['repo', 'add', '--path', repoPath])).repo
   assert.ok(repo.id)
   worktree = (
@@ -144,6 +145,76 @@ try {
     await page.screenshot({ path: join(root, 'cube-onboarding.png'), fullPage: true })
     await page.getByRole('button', { name: 'Close', exact: true }).click()
     console.log('PASS: onboarding setup terminal starts and receives the install draft')
+    browserTarget = createServer((_req, res) => {
+      res.setHeader('Content-Type', 'text/html')
+      res.end(
+        '<!doctype html><title>Cube browser acceptance</title><h1>Cube browser acceptance</h1><button onclick="this.textContent=String(Number(this.textContent)+1)">0</button><input aria-label="Test input">'
+      )
+    })
+    await new Promise((resolve) => browserTarget.listen(0, '127.0.0.1', resolve))
+    const targetUrl = `http://127.0.0.1:${browserTarget.address().port}/`
+    await page.getByRole('button', { name: 'New tab', exact: true }).click()
+    await page.getByText('New Browser Tab', { exact: true }).click()
+    await page.getByRole('combobox').fill(targetUrl)
+    await page.getByRole('combobox').press('Enter')
+    await page.getByTestId('remote-browser-frame').waitFor({ timeout: 30000 })
+    const tabHandle = await page.waitForFunction(
+      async (url) => {
+        const response = await window.api.runtime.call({ method: 'browser.tabList', params: {} })
+        return response.result?.tabs?.find((tab) => tab.url === url)?.browserPageId
+      },
+      targetUrl,
+      { timeout: 30000 }
+    )
+    const browserPageId = await tabHandle.jsonValue()
+    const geometryResponse = await page.evaluate(
+      (id) =>
+        window.api.runtime.call({
+          method: 'browser.eval',
+          params: {
+            page: id,
+            expression:
+              'JSON.stringify({width:innerWidth,height:innerHeight,button:document.querySelector("button").getBoundingClientRect().toJSON(),input:document.querySelector("input").getBoundingClientRect().toJSON()})'
+          }
+        }),
+      browserPageId
+    )
+    assert.equal(geometryResponse.ok, true)
+    const geometry = JSON.parse(geometryResponse.result.result)
+    const frame = page.getByTestId('remote-browser-frame')
+    const bounds = await frame.boundingBox()
+    for (const rect of [geometry.button, geometry.input]) {
+      await frame.click({
+        position: {
+          x: ((rect.x + rect.width / 2) * bounds.width) / geometry.width,
+          y: ((rect.y + rect.height / 2) * bounds.height) / geometry.height
+        }
+      })
+    }
+    await page.keyboard.type('Cube browser input')
+    const verifyBrowserInput = () =>
+      page.waitForFunction(
+        async (id) => {
+          const response = await window.api.runtime.call({
+            method: 'browser.eval',
+            params: {
+              page: id,
+              expression:
+                'JSON.stringify({count:document.querySelector("button").textContent,input:document.querySelector("input").value})'
+            }
+          })
+          if (!response.ok) return false
+          const state = JSON.parse(response.result.result)
+          return state.count === '1' && state.input === 'Cube browser input'
+        },
+        browserPageId,
+        { timeout: 15000 }
+      )
+    await verifyBrowserInput()
+    await page.reload()
+    await page.getByTestId('remote-browser-frame').waitFor({ timeout: 30000 })
+    await verifyBrowserInput()
+    console.log('PASS: browser stream, mouse, keyboard, and web reload')
   }
   const port = app.port
   await app.stop()
@@ -173,6 +244,8 @@ try {
   if (page)
     await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true }).catch(() => {})
   await browser?.close()
+  browserTarget?.closeAllConnections()
+  browserTarget?.close()
   let cleaned = true
   if (app && worktree) {
     await cli(['worktree', 'rm', '--worktree', worktree.id, '--force']).catch((error) => {

@@ -52,6 +52,8 @@ jobs:
         run: cube/tools/node/bin/node node_modules/@playwright/test/cli.js install --with-deps chromium
       - name: Real runtime and web acceptance
         run: cube/tools/node/bin/node cube/smoke.mjs --browser
+      - name: Preserve terminals when upgrading from the Node runtime
+        run: cube/tools/node/bin/node cube/smoke.mjs --migrate-node
       - uses: actions/upload-artifact@v6
         if: always()
         with:
