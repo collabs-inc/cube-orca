@@ -89,3 +89,24 @@ test('cancels startup without leaving its child running', async (t) => {
   controller.abort()
   await assert.rejects(pending, /abort/i)
 })
+
+test('runtime exit does not wait for a surviving descendant to close stdout', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'orca-descendant-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const entry = join(root, 'fake.mjs')
+  await writeFile(
+    entry,
+    `
+    import {spawn} from 'node:child_process';
+    const child=spawn(process.execPath,['-e','setTimeout(()=>{},3000)'],{detached:true,stdio:['ignore','inherit','ignore']});
+    child.unref();
+    console.log(${JSON.stringify(JSON.stringify(ready))});
+    setInterval(()=>{},1000);
+  `
+  )
+  const app = await launchOrca({ root, entry, port: 0, state: join(root, 'state') })
+  t.after(() => app.stop())
+  const started = Date.now()
+  await app.stop()
+  assert.ok(Date.now() - started < 1000, 'stop waited for descendant stdout')
+})

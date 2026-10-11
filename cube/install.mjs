@@ -1,6 +1,6 @@
-// Cube integration: build upstream Orca without installing or launching Electron.
+// Cube integration: build the web UI and full headless Electron runtime.
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile, rename, rm, mkdtemp } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rename, rm, mkdtemp, copyFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -45,6 +45,51 @@ await download(
   'pnpm',
   'package'
 )
+// Private Debian 12 libraries, including their packaged copyright notices.
+// Cube supplies Xvfb and the remaining base Chromium dependencies.
+const libraries = [
+  [
+    'g/gtk+3.0/libgtk-3-0_3.24.38-2~deb12u3_amd64.deb',
+    '0ff7375c98b5a8d6aafc6096b21d9f7bae4ecb581d31fce5d37be18f55b489a2'
+  ],
+  [
+    'libe/libepoxy/libepoxy0_1.5.10-1_amd64.deb',
+    '050cbedc9c2a5cce976151c720a3817f2103a01e6ac255bdd6f2c6a7509b04c3'
+  ],
+  [
+    'w/wayland/libwayland-client0_1.21.0-1_amd64.deb',
+    '1f002d028b8b79eec9847c636d8886d10dfe8c884cc2bebe18086b1391c5a28d'
+  ],
+  [
+    'w/wayland/libwayland-cursor0_1.21.0-1_amd64.deb',
+    '0b684467ec795024fcaae99ea4384959cc4052b2da5adec38c9b76dfed9bcf41'
+  ],
+  [
+    'w/wayland/libwayland-egl1_1.21.0-1_amd64.deb',
+    'cb4225f0e15e00a3570d4cbc288c87ff477d73e741c3f1c5a6d47cf350d45378'
+  ],
+  [
+    'libx/libxcursor/libxcursor1_1.2.1-1_amd64.deb',
+    '49e167048661be4c614fff81429e9eaef38e54ef1d2150a5d2a8c53919217529'
+  ],
+  [
+    'libx/libxinerama/libxinerama1_1.1.4-3_amd64.deb',
+    '8dde8f74d2fc001f306fb1295a86850145e93191d35c983c7f52eb21b0a7f8cb'
+  ]
+]
+for (const [path, hash] of libraries) {
+  const response = await fetch(`https://deb.debian.org/debian/pool/main/${path}`, {
+    signal: AbortSignal.timeout(120000)
+  })
+  if (!response.ok) throw Error(`Runtime library download failed (${response.status}): ${path}`)
+  const bytes = Buffer.from(await response.arrayBuffer())
+  if (createHash('sha256').update(bytes).digest('hex') !== hash)
+    throw Error(`Runtime library checksum mismatch: ${path}`)
+  const archive = join(tools, 'runtime-library.deb')
+  await writeFile(archive, bytes)
+  run('dpkg-deb', ['-x', archive, join(tools, 'linux-libs')])
+  await rm(archive)
+}
 const cache = join(homedir(), '.cache', 'orca-cube')
 await mkdir(cache, { recursive: true, mode: 0o700 })
 const temporary = await mkdtemp(join(cache, 'build-'))
@@ -69,6 +114,33 @@ try {
     { env }
   )
   run(node, [pnpm, 'build:orcad'], { env })
+  const electronEnv = {
+    ...env,
+    LD_LIBRARY_PATH: [join(tools, 'linux-libs/usr/lib/x86_64-linux-gnu'), env.LD_LIBRARY_PATH]
+      .filter(Boolean)
+      .join(':')
+  }
+  delete electronEnv.ELECTRON_SKIP_BINARY_DOWNLOAD
+  delete electronEnv.ELECTRON_RUN_AS_NODE
+  run(node, ['node_modules/electron/install.js'], { env: electronEnv })
+  run(node, ['config/scripts/ensure-native-runtime.mjs', '--runtime=electron'], {
+    env: electronEnv
+  })
+  for (const target of ['main', 'preload', 'renderer']) {
+    run(
+      node,
+      [
+        'node_modules/electron-vite/bin/electron-vite.js',
+        'build',
+        '--config',
+        'config/electron-vite-target.config.cts',
+        '--ignoreConfigWarning'
+      ],
+      {
+        env: { ...electronEnv, ORCA_ELECTRON_VITE_TARGET: target }
+      }
+    )
+  }
   // The upstream web wrapper overrides NODE_OPTIONS with a larger heap.
   // Packages were already built by build:orcad; invoke the same Vite build directly.
   run(
@@ -83,6 +155,11 @@ try {
     { env }
   )
   run(node, ['config/scripts/verify-web-build.mjs'], { env })
+  // Electron's development launcher expects out/cli; reuse the bundled CLI
+  // built for orcad rather than leaving managed agents without the orca command.
+  await mkdir(join(root, 'out/cli'), { recursive: true })
+  await copyFile(join(root, 'out/orcad/out/cli/index.js'), join(root, 'out/cli/index.js'))
+  await copyFile(join(root, 'out/orcad/out/package.json'), join(root, 'out/package.json'))
 } finally {
   await rm(temporary, { recursive: true, force: true })
 }

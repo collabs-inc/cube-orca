@@ -14,6 +14,7 @@ process.once('SIGHUP', () => controller.abort())
 try {
   const app = await launchOrca({
     root,
+    entry: join(root, 'cube/electron.mjs'),
     port,
     state: process.env.ORCA_CUBE_STATE_DIR || join(homedir(), '.orca', 'cube'),
     signal: controller.signal

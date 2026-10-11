@@ -10,6 +10,7 @@ const electronApp = vi.hoisted(() => ({
 }))
 const launchHooks = vi.hoisted(() => ({
   duringInstallDirRepair: (): void => {},
+  rpcOptions: null as unknown,
   failBeforeWindow: false
 }))
 
@@ -26,6 +27,9 @@ vi.mock('../persistence', () => ({
 const launchOrder = vi.hoisted((): string[] => [])
 vi.mock('../runtime/runtime-rpc', () => ({
   OrcaRuntimeRpcServer: class {
+    constructor(options: unknown) {
+      launchHooks.rpcOptions = options
+    }
     start = vi.fn(async () => {
       launchOrder.push('rpc-start')
     })
@@ -272,11 +276,12 @@ describe('desktop startup activation', () => {
     expect(state.desktopActivationGate).toBeNull()
   })
 
-  it('loads SSH targets on a windowless serve before paired clients can connect (#25886)', async () => {
+  it('pins loopback on a windowless serve before paired clients can connect', async () => {
     launchOrder.length = 0
     state.isServeMode = true
     vi.mocked(getServeOptions).mockReturnValueOnce({
       json: false,
+      bindHost: '127.0.0.1',
       pairingAddress: null,
       noPairing: true,
       mobilePairing: false,
@@ -296,6 +301,7 @@ describe('desktop startup activation', () => {
       handleMacAppActivation: vi.fn()
     })
 
+    expect(launchHooks.rpcOptions).toMatchObject({ pinnedBindHost: '127.0.0.1' })
     expect(windows).toHaveLength(0)
     expect(launchOrder).toEqual(['ssh-registered', 'rpc-start'])
     // Signals mark their quit, so the macOS native-quit guard lets them through (#15537).

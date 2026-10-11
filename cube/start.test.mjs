@@ -29,9 +29,9 @@ test(
     }
     const pidFile = join(root, 'runtime.pid')
     await writeFile(
-      join(root, 'out/orcad/orcad.js'),
+      join(root, 'cube/electron.mjs'),
       `
-    require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+    (await import('node:fs')).writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
     console.log(JSON.stringify({type:'orca_server_ready', boundEndpoint:'ws://127.0.0.1:1234', pairing:{available:true,url:'orca://pair?code='+Buffer.from(JSON.stringify({v:2,scope:'runtime',endpoint:'ws://127.0.0.1:1234',deviceToken:'secret',publicKeyB64:'key'})).toString('base64url')},health:{terminalDaemon:{selfTest:{ok:true}}}}));
     setInterval(()=>{},1000);
   `

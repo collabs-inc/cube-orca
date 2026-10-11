@@ -3,6 +3,18 @@ import { getServeOptions } from './serve-options'
 import { normalizeServeModeArgv } from './serve-mode-argv'
 
 describe('getServeOptions', () => {
+  it('accepts an explicit loopback bind address', () => {
+    expect(getServeOptions(['/AppRun', '--serve', '--serve-bind', '127.0.0.1'])).toMatchObject({
+      bindHost: '127.0.0.1'
+    })
+  })
+
+  it('rejects an invalid bind address', () => {
+    expect(() => getServeOptions(['/AppRun', '--serve', '--serve-bind', 'example.com'])).toThrow(
+      /address/
+    )
+  })
+
   it('parses a valid launch', () => {
     expect(
       getServeOptions(['/AppRun', '--serve', '--serve-port', '6768', '--serve-no-pairing'])

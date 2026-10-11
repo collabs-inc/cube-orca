@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { app } from 'electron'
+import { collectTerminalDaemonHealth, computeOrcadBuildHash } from '../orcad/orcad-health'
 import { notifyServeSupervisorReady } from '../serve-update-handoff'
 import { buildServePairingReadiness, servePublishMode } from '../server/serve-pairing-readiness'
 import { mainProcessState as state } from './main-process-state'
@@ -29,6 +30,16 @@ export async function printServeReady(options: ServeOptions): Promise<void> {
   await state.serveReadinessPublisher.publish(
     {
       runtimeId: runtime.getRuntimeId(),
+      health: {
+        buildHash: computeOrcadBuildHash(),
+        buildVersion: app.getVersion(),
+        nodeVersion: process.versions.node,
+        nodeAbi: process.versions.modules ?? 'unknown',
+        platform: process.platform,
+        arch: process.arch,
+        pid: process.pid,
+        terminalDaemon: await collectTerminalDaemonHealth()
+      },
       ...(await buildServePairingReadiness(options, runtimeRpc)),
       // Why: the WSL reconciliation barrier fails open, so 'pending' warns a WSL PTY launch may still race a repair.
       managedWslCliReconciliation: state.managedWslCliReconciliationStatus

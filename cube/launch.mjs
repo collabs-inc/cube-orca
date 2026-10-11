@@ -43,12 +43,17 @@ export async function launchOrca({
   let server
   let stopping = false
   let exitCode = 0
-  const closed = new Promise((resolve) =>
-    child.once('close', (code) => {
+  const closed = new Promise((resolve) => {
+    const exited = (code) => {
+      // Persistent terminal descendants may retain stdout after this child exits.
+      child.stdout.destroy()
       exitCode = stopping ? 0 : code || 1
       resolve(exitCode)
-    })
-  )
+    }
+    child.once('exit', exited)
+    // Spawn errors emit close without exit.
+    child.once('close', exited)
+  })
   const stop = async () => {
     if (!stopping) {
       stopping = true
@@ -63,7 +68,7 @@ export async function launchOrca({
   }
   const abort = () => void stop()
   signal?.addEventListener('abort', abort, { once: true })
-  child.once('close', () => {
+  child.once('exit', () => {
     signal?.removeEventListener('abort', abort)
     server?.closeClients()
     server?.close()
