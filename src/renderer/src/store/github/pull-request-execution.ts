@@ -171,6 +171,7 @@ export function startPullRequestLookup(args: {
             hasRepoOwner: repo !== undefined,
             pr,
             fetchedAt: outcome.fetchedAt,
+            rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined,
             fetchedHeadOid: requestHeadOid,
             worktreeId: options?.worktreeId,
             linkedPRNumber,
@@ -270,8 +271,7 @@ export function startPullRequestLookup(args: {
           state: get(),
           worktreeId: options?.worktreeId,
           linkedPRNumber,
-          fallbackPRNumber,
-          fallbackPRSource
+          rejectedPRUrls: outcome.kind === 'no-pr' ? outcome.rejectedPRUrls : undefined
         })
       ) {
         return get().prCache[cacheKey]?.data ?? null

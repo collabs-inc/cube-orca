@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { ProfilePreferences } from '../persistence/loading-store/profile-preferences'
+import type { GlobalSettings } from '../../shared/global-settings-types'
 import { DeviceRegistry } from '../runtime/device-registry'
 import { RuntimeMobileNotificationController } from '../runtime/runtime-mobile-notification-controller'
 import { PushUnregisterOutbox } from '../runtime/push/push-unregister-outbox'
@@ -21,7 +22,34 @@ const state = vi.hoisted(() => ({
   startDaemon: vi.fn(async () => {}),
   browserProvider: vi.fn(async () => null),
   register: vi.fn(async () => ({ ok: true, registrationId: 'headless-registration' })),
-  send: vi.fn(async () => ({ ok: true, results: [] }))
+  send: vi.fn(async () => ({ ok: true, results: [] })),
+  startCodexHooks: vi.fn(),
+  installManagedAgentHooks: vi.fn(async () => []),
+  refreshOpenCodePlugins: vi.fn(),
+  adoptLoginShellAgentHomes: vi.fn(async () => {})
+}))
+const profile = vi.hoisted(() => {
+  const value: { settings: Partial<GlobalSettings> } = { settings: {} }
+  return value
+})
+// Why: startup reconciles the user-global agent configs; keep it off this machine's real home.
+vi.mock('../codex/codex-hook-reconcile', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  startCodexHooks: state.startCodexHooks
+}))
+vi.mock('../agent-hooks/managed-agent-hook-controls', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  installManagedAgentHooks: state.installManagedAgentHooks
+}))
+vi.mock('../agent-hooks/local-agent-cli-presence', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  hydrateAgentCliShellPath: async () => {}
+}))
+vi.mock('../agent-hooks/agent-home-login-shell', () => ({
+  adoptLoginShellAgentHomes: state.adoptLoginShellAgentHomes
+}))
+vi.mock('../opencode/opencode-status-plugin-startup-refresh', () => ({
+  refreshInstalledOpenCodeStatusPlugins: state.refreshOpenCodePlugins
 }))
 vi.mock('./orcad-app-paths', () => ({
   resolveOrcadInstallRoot: () => state.root,
@@ -65,7 +93,7 @@ vi.mock('./orcad-profile-state-startup', () => ({
     }
     return {
       store: {
-        getSettings: () => ({}),
+        getSettings: () => profile.settings,
         onSettingsChanged: state.onSettingsChanged,
         flushFinalOrThrowAsync: async () => {},
         freezeWritesAsync: async () => {}
@@ -157,6 +185,7 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(state.root, { recursive: true, force: true })
   state.profileStartupErrors.length = 0
+  profile.settings = {}
   vi.clearAllMocks()
 })
 
@@ -254,4 +283,43 @@ it('unsubscribes settings when daemon startup fails after hook setup', async () 
   expect(state.removeSettingsListener).toHaveBeenCalledOnce()
   expect(readdirSync(profileStateAccessPaths(state.root).participants)).toEqual([])
   acquireProfileStateMaintenance(state.root).release()
+})
+
+// Why: a freshly managed SSH host starts orcad on connect; without this its agents never report status.
+it('installs agent status hooks on the host when it starts', async () => {
+  state.root = mkdtempSync(join(tmpdir(), 'orca-headless-hooks-'))
+  const { startOrcad } = await import('./orcad-entry')
+  const host = await startOrcad({ noPairing: true, json: true })
+  try {
+    expect(state.startCodexHooks).toHaveBeenCalledOnce()
+    // orcad launches Codex on the real ~/.codex; it has no Orca-managed account homes.
+    expect(state.startCodexHooks.mock.calls[0]![0].resolveLaunchHome()).toBeNull()
+    await vi.waitFor(() =>
+      expect(state.installManagedAgentHooks).toHaveBeenCalledWith(
+        profile.settings,
+        expect.objectContaining({ shouldHydrateShellPath: true })
+      )
+    )
+    expect(state.refreshOpenCodePlugins).toHaveBeenCalledWith(profile.settings)
+    // Grok/Kiro homes set only in login profiles must be known before their installers run.
+    expect(state.adoptLoginShellAgentHomes.mock.invocationCallOrder[0]).toBeLessThan(
+      state.installManagedAgentHooks.mock.invocationCallOrder[0]!
+    )
+  } finally {
+    await host.stop()
+  }
+})
+
+it('leaves agent configs alone when status hooks are off', async () => {
+  state.root = mkdtempSync(join(tmpdir(), 'orca-headless-hooks-off-'))
+  profile.settings = { agentStatusHooksEnabled: false }
+  const { startOrcad } = await import('./orcad-entry')
+  const host = await startOrcad({ noPairing: true, json: true })
+  try {
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(state.installManagedAgentHooks).not.toHaveBeenCalled()
+    expect(state.startCodexHooks.mock.calls[0]![0].isEnabled()).toBe(false)
+  } finally {
+    await host.stop()
+  }
 })

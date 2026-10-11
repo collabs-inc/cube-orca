@@ -10,7 +10,8 @@ vi.mock('../git/runner', () => ({
 }))
 
 vi.mock('../providers/ssh-git-dispatch', () => ({
-  getSshGitProvider: getSshGitProviderMock
+  getSshGitProvider: getSshGitProviderMock,
+  getSshGitProviderGeneration: vi.fn(() => 0)
 }))
 
 import {

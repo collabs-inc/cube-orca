@@ -4,10 +4,12 @@ import type {
   PRMergeableState,
   PRReviewDecision
 } from '../../../../shared/github/pull-request-types'
-import { gitExecFileAsync } from '../../gh-utils'
+import { gitExecFileAsync, type OwnerRepo } from '../../gh-utils'
 import type { GitAdmissionTier } from '../../../git/command-runner/git-exec-options'
 import type { HostedReviewExecutionOptions } from '../../../source-control/hosted-review-git-options'
 import { mapPRState } from '../../mappers'
+import type { MergedPRCommitMembership } from '../../merged-pr-commit-membership'
+import { githubRepoIdentityKey } from '../../../../shared/github/repository-identity-key'
 import {
   normalizePRMergeable,
   normalizeReviewDecision,
@@ -35,8 +37,17 @@ export type PullRequestLookupData = {
   headRefName?: string
   baseRefOid?: string
   headRefOid?: string
+  headRepositoryOwner?: { login?: string } | null
+  headRepository?: { name?: string } | null
+  headDefaultBranchName?: string
   stack?: GitHubPRStack
   stackMetadataChecked?: boolean
+}
+
+export type PullRequestLookupPolicy = {
+  accepts: (data: PullRequestLookupData, prRepo: OwnerRepo | null) => Promise<boolean>
+  isRejected: (prRepo: OwnerRepo, number: number) => boolean
+  rejectedPRUrls: ReadonlySet<string>
 }
 
 export type RestPullRequest = {
@@ -51,7 +62,12 @@ export type RestPullRequest = {
   mergeable?: boolean | null
   mergeable_state?: string | null
   base?: { ref?: string; sha?: string }
-  head?: { ref?: string; sha?: string }
+  head?: {
+    ref?: string
+    sha?: string
+    repo?: { name?: string; owner?: { login?: string }; default_branch?: string } | null
+    user?: { login?: string }
+  }
   stack?: {
     number?: number
     position?: number
@@ -61,10 +77,10 @@ export type RestPullRequest = {
 }
 
 export const PR_LOOKUP_JSON_FIELDS =
-  'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,reviewDecision,mergeStateStatus,autoMergeRequest,baseRefName,headRefName,baseRefOid,headRefOid'
+  'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,reviewDecision,mergeStateStatus,autoMergeRequest,baseRefName,headRefName,baseRefOid,headRefOid,headRepositoryOwner,headRepository'
 
 export const PR_BRANCH_LIST_JSON_FIELDS =
-  'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,baseRefName,headRefName,baseRefOid,headRefOid'
+  'number,title,state,url,statusCheckRollup,updatedAt,isDraft,mergeable,baseRefName,headRefName,baseRefOid,headRefOid,headRepositoryOwner,headRepository'
 
 export type GitHubPRBranchLookupOptions = HostedReviewExecutionOptions & {
   acceptMergedFallbackPR?: boolean
@@ -118,9 +134,34 @@ export function mapRestPullRequest(pr: RestPullRequest): PullRequestLookupData {
     headRefName: pr.head?.ref,
     baseRefOid: pr.base?.sha,
     headRefOid: pr.head?.sha,
+    headRepositoryOwner: pr.head?.repo?.owner ?? pr.head?.user,
+    headRepository: pr.head?.repo,
+    headDefaultBranchName: pr.head?.repo?.default_branch,
     stackMetadataChecked: true,
     ...(stack ? { stack } : {})
   }
+}
+
+export function pullRequestHeadRepository(
+  data: PullRequestLookupData,
+  prRepo: OwnerRepo | null
+): OwnerRepo | null {
+  const owner = data.headRepositoryOwner?.login?.trim()
+  const repo = data.headRepository?.name?.trim()
+  return owner && repo ? { owner, repo, ...(prRepo?.host ? { host: prRepo.host } : {}) } : null
+}
+
+export function pullRequestMatchesHeadRepository(
+  data: PullRequestLookupData,
+  prRepo: OwnerRepo | null,
+  expectedHeadRepo: OwnerRepo | null
+): boolean {
+  const actualHeadRepo = pullRequestHeadRepository(data, prRepo)
+  return (
+    !actualHeadRepo ||
+    !expectedHeadRepo ||
+    githubRepoIdentityKey(actualHeadRepo) === githubRepoIdentityKey(expectedHeadRepo)
+  )
 }
 
 export function isMergedImplicitPR(
@@ -141,6 +182,24 @@ export function shouldHideMergedImplicitPR(
   }
   // Why: keep hiding historical merged branch matches, but preserve the merged PR for the exact commit currently checked out.
   return !currentHeadOid || data.headRefOid !== currentHeadOid
+}
+
+export async function linkedMergedPRDivergedHeadOid(
+  data: PullRequestLookupData | null,
+  linkedPRNumber: number | null | undefined,
+  currentHeadOid: string | null,
+  containsHead: (data: PullRequestLookupData, headOid: string) => Promise<MergedPRCommitMembership>
+): Promise<string | null> {
+  if (
+    typeof linkedPRNumber !== 'number' ||
+    !data ||
+    mapPRState(data.state, data.isDraft) !== 'merged' ||
+    currentHeadOid === null ||
+    data.headRefOid === currentHeadOid
+  ) {
+    return null
+  }
+  return (await containsHead(data, currentHeadOid)) === 'not-contained' ? currentHeadOid : null
 }
 
 export function normalizePullRequestLookupData(data: PullRequestLookupData): PullRequestLookupData {
