@@ -25,15 +25,15 @@ export function shouldShowRemoteDownloadAction(
   // advertises SFTP recursive transfer (system-SSH and unknown states stay off).
   supportsFolderDownload = false
 ): boolean {
-  // Why: Desktop-only because download depends on Electron's native save/folder dialogs;
-  // runtime and system-SSH folders have no recursive transfer contract.
+  // Web clients can save runtime files through the browser download manager.
+  if ((globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ === true) {
+    return !node.isDirectory && !connectionId && Boolean(runtimeDownloadContext)
+  }
+  // Runtime and system-SSH folders have no recursive transfer contract.
   const hasDownloadCapability = node.isDirectory
     ? Boolean(connectionId && supportsFolderDownload)
     : Boolean(connectionId || runtimeDownloadContext)
-  return (
-    hasDownloadCapability &&
-    (globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ !== true
-  )
+  return hasDownloadCapability
 }
 
 export function shouldShowCopyFileAction(

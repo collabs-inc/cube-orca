@@ -21,6 +21,7 @@ import {
 } from './web-runtime-session'
 import { isMissingPathError, resolveRuntimeFilePath } from './web-runtime-worktree-catalog'
 import { noopUnsubscribe } from './web-storage'
+import { createWebFileDownloads } from './web-file-downloads'
 
 export function createFileApi(): NonNullable<Partial<PreloadApi>['fs']> {
   const searches = new Map<string, AbortController>()
@@ -65,21 +66,7 @@ export function createFileApi(): NonNullable<Partial<PreloadApi>['fs']> {
     downloadFolder: async () => {
       throw new Error('Remote folder download is unavailable in paired web clients.')
     },
-    saveDownloadedFile: async () => {
-      throw new Error('Remote file download is unavailable in paired web clients.')
-    },
-    startDownloadedFile: async () => {
-      throw new Error('Remote file download is unavailable in paired web clients.')
-    },
-    appendDownloadedFileChunk: async () => {
-      throw new Error('Remote file download is unavailable in paired web clients.')
-    },
-    finishDownloadedFile: async () => {
-      throw new Error('Remote file download is unavailable in paired web clients.')
-    },
-    cancelDownloadedFile: async () => {
-      throw new Error('Remote file download is unavailable in paired web clients.')
-    },
+    ...createWebFileDownloads(),
     listMarkdownDocuments: async ({ rootPath }) => {
       const file = await resolveRuntimeFilePath(rootPath)
       return callRuntimeResult('files.listMarkdownDocuments', {

@@ -1,3 +1,4 @@
+import { isWebClientLocation } from '@/lib/web-client-location'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { toast } from 'sonner'
 import { translate } from '@/i18n/i18n'
@@ -40,6 +41,16 @@ export async function downloadRemoteFile(
       result.destinationPath,
       window.api.platform.get().platform
     )
+    if (isWebClientLocation()) {
+      toast.success(
+        translate(
+          'auto.components.right.sidebar.FileExplorerRow.browserDownloadStarted',
+          "Download started: '{{value0}}'",
+          { value0: savedName }
+        )
+      )
+      return
+    }
     toast.success(
       node.isDirectory
         ? translate(

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
@@ -13,6 +13,7 @@ const root = resolve(import.meta.dirname, '..')
 const fixture = await mkdtemp(join(tmpdir(), 'orca-cube-smoke-'))
 const home = join(fixture, 'home')
 const repoPath = join(home, 'cube-smoke-repo')
+const downloadBytes = Buffer.from(Array.from({ length: 3 * 1024 * 1024 + 17 }, (_, i) => i % 256))
 await mkdir(repoPath, { recursive: true })
 const env = {
   ...process.env,
@@ -71,6 +72,7 @@ try {
   ])
     await exec('git', args, { cwd: repoPath, env })
   await writeFile(join(repoPath, 'hello.txt'), 'Cube integration smoke\n')
+  await writeFile(join(repoPath, 'download-proof.bin'), downloadBytes)
   await exec('git', ['add', '.'], { cwd: repoPath, env })
   await exec('git', ['commit', '-m', 'fixture'], { cwd: repoPath, env })
   await start(0, process.argv.includes('--migrate-node') ? 'node' : 'electron')
@@ -140,6 +142,18 @@ try {
     await page.locator('.xterm-screen').first().waitFor({ timeout: 30000 })
     await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true })
     console.log('PASS: real web client pairing, terminal rendering and reload')
+    await page
+      .getByRole('button', { name: 'download-proof.bin', exact: true })
+      .click({ button: 'right' })
+    const downloadEvent = page.waitForEvent('download', { timeout: 30000 })
+    await page.getByRole('menuitem', { name: 'Download', exact: true }).click()
+    const download = await downloadEvent
+    const downloadedPath = join(fixture, 'downloaded.bin')
+    await download.saveAs(downloadedPath)
+    assert.equal(await download.failure(), null)
+    assert.equal(download.suggestedFilename(), 'download-proof.bin')
+    assert.deepEqual(await readFile(downloadedPath), downloadBytes)
+    console.log('PASS: browser file download preserves multi-chunk binary bytes')
     await page.removeLocatorHandler(page.getByRole('dialog'))
     await page.getByRole('button', { name: 'Onboarding checklist' }).click()
     await page.getByRole('button', { name: /Give agents Orca skills/ }).click()
