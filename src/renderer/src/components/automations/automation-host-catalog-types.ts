@@ -105,6 +105,8 @@ export type AutomationRuntimeAuthorityInput = {
 }
 
 export type AutomationHostCatalogInput = {
+  /** Web clients have no local desktop authority. */
+  desktopEnabled?: boolean
   desktop: AutomationDesktopAuthorityInput
   /** Saved runtime environments — projected even while offline. */
   runtimes: readonly AutomationRuntimeAuthorityInput[]
@@ -116,6 +118,7 @@ export type AutomationHostCatalogInput = {
 
 /** Positive-evidence gates for absence. Missing data is never removal (invariant 4). */
 export type AutomationCatalogHydrationEvidence = {
+  desktopEnabled?: boolean
   runtimeCatalogSettled: boolean
   desktopSshHydrated: boolean
   runtimeSshHydratedByEnvironmentId: ReadonlyMap<string, boolean>

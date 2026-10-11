@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store'
+import { isWebClientLocation } from '@/lib/web-client-location'
 import { getHostDisplayLabelOverrides } from '../../../../shared/host-setting-overrides'
 import { getLocalExecutionHostLabel } from '../../../../shared/execution-host'
 import type { AutomationHostFilter } from '../../../../shared/automation-host-filter'
@@ -162,6 +163,7 @@ export function useAutomationHostCatalog(
       buildAutomationHostCatalog(
         buildAutomationHostCatalogSource({
           ...sourceState,
+          desktopEnabled: !isWebClientLocation(),
           desktopLabel,
           orphanCount,
           referencedStableKeys

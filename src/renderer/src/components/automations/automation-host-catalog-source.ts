@@ -40,6 +40,7 @@ export type AutomationCatalogRuntimeSource = {
 }
 
 export type AutomationHostCatalogSource = {
+  desktopEnabled?: boolean
   desktopLabel?: string
   desktopSsh: AutomationCatalogSshSource
   runtimes: readonly AutomationCatalogRuntimeSource[]
@@ -121,6 +122,7 @@ export function buildAutomationHostCatalogSource(
   source: AutomationHostCatalogSource
 ): AutomationHostCatalogInput {
   return {
+    desktopEnabled: source.desktopEnabled,
     desktop: {
       label: source.desktopLabel ?? getLocalExecutionHostLabel(),
       // Why 'disconnected' for a hydrated target with no state: the desktop
