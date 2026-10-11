@@ -102,20 +102,18 @@ try {
     const { chromium } = await import('@playwright/test')
     browser = await chromium.launch({ headless: true })
     page = await browser.newPage({ viewport: { width: 1440, height: 960 } })
+    // Tips appear asynchronously, including after reload. Dismiss them when
+    // they obstruct an action rather than racing an immediate visibility check.
+    await page.addLocatorHandler(page.getByRole('dialog'), async (dialog) => {
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+    })
     page.on('pageerror', (error) => console.error('Browser page error:', error.message))
     await page.goto(`http://127.0.0.1:${app.port}/`)
     await page.getByText('cube-smoke-repo', { exact: false }).first().waitFor({ timeout: 60000 })
     assert.equal(new URL(page.url()).hash, '')
     await page.reload()
     await page.getByText('cube-smoke-repo', { exact: false }).first().waitFor({ timeout: 60000 })
-    // Dismiss upstream first-run tips through their real controls, then open the
-    // worktree so acceptance proves the terminal surface renders as well.
-    for (let i = 0; i < 8; i++) {
-      const close = page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true })
-      if (!(await close.isVisible())) break
-      await close.click()
-      await page.waitForTimeout(200)
-    }
+    // Open the actual worktree and verify its terminal surface.
     await page
       .locator(`[role="option"][data-worktree-id=${JSON.stringify(worktree.id)}]`)
       .first()
