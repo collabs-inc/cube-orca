@@ -37,6 +37,8 @@ jobs:
         run: >-
           cube/tools/node/bin/node node_modules/vitest/vitest.mjs run
           --config config/vitest.config.ts --maxWorkers=1
+          src/renderer/src/web/web-workspace-cleanup.test.ts
+          src/main/runtime/rpc/methods/workspace-cleanup.test.ts
           src/renderer/src/web/web-file-upload.test.ts
           src/renderer/src/components/right-sidebar/BrowserFileUploadButton.test.tsx
           src/renderer/src/runtime/runtime-file-import-pairing-revision.test.ts
