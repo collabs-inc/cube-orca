@@ -49,10 +49,10 @@ const cache = join(homedir(), '.cache', 'orca-cube')
 await mkdir(cache, { recursive: true, mode: 0o700 })
 const temporary = await mkdtemp(join(cache, 'build-'))
 const node = join(tools, 'node/bin/node')
-const pnpm = join(tools, 'pnpm/bin/pnpm.cjs')
+const pnpm = join(tools, 'pnpm/bin/pnpm.mjs')
 const env = {
   ...process.env,
-  PATH: `${tools}/node/bin:${process.env.PATH}`,
+  PATH: `${tools}/node/bin:${tools}/pnpm:${process.env.PATH}`,
   TMPDIR: temporary,
   npm_config_cache: join(tools, 'npm-cache'),
   npm_config_jobs: '2',
@@ -69,7 +69,20 @@ try {
     { env }
   )
   run(node, [pnpm, 'build:orcad'], { env })
-  run(node, [pnpm, 'build:web'], { env })
+  // The upstream web wrapper overrides NODE_OPTIONS with a larger heap.
+  // Packages were already built by build:orcad; invoke the same Vite build directly.
+  run(
+    node,
+    [
+      '--max-old-space-size=2048',
+      'node_modules/vite/bin/vite.js',
+      'build',
+      '--config',
+      'vite.web.config.ts'
+    ],
+    { env }
+  )
+  run(node, ['config/scripts/verify-web-build.mjs'], { env })
 } finally {
   await rm(temporary, { recursive: true, force: true })
 }
