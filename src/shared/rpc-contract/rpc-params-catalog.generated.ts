@@ -196,6 +196,7 @@ import {
   FileSearch,
   FileTreePath,
   FileUnwatch,
+  FloatingTerminalDirectory,
   ResolveTerminalPath,
   ServerDirectoryBrowse
 } from './files-params'
@@ -839,6 +840,7 @@ export const RPC_PARAMS_BY_METHOD = {
   'files.readTerminalArtifact': TerminalArtifactFile,
   'files.readTerminalArtifactPreview': TerminalArtifactFile,
   'files.rename': FileRename,
+  'files.resolveFloatingTerminalCwd': FloatingTerminalDirectory,
   'files.resolveTerminalPath': ResolveTerminalPath,
   'files.search': FileSearch,
   'files.searchPaths': FilePathSearch,

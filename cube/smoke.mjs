@@ -121,6 +121,23 @@ try {
     await page.locator('.xterm-screen').first().waitFor({ timeout: 30000 })
     await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true })
     console.log('PASS: real web client pairing, terminal rendering and reload')
+    await page.removeLocatorHandler(page.getByRole('dialog'))
+    await page.getByRole('button', { name: 'Onboarding checklist' }).click()
+    await page.getByRole('button', { name: /Give agents Orca skills/ }).click()
+    await page.getByRole('button', { name: 'Install skills', exact: true }).click()
+    const setup = page.getByRole('region', { name: 'Skill setup command' })
+    await setup.locator('[data-pty-id]').waitFor({ timeout: 30000 })
+    await page.waitForFunction(
+      () => {
+        const setup = document.querySelector('[aria-label="Skill setup command"]')
+        return setup?.querySelector('.xterm-rows')?.textContent?.includes('npx')
+      },
+      undefined,
+      { timeout: 30000 }
+    )
+    await page.screenshot({ path: join(root, 'cube-onboarding.png'), fullPage: true })
+    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    console.log('PASS: onboarding setup terminal starts and receives the install draft')
   }
   const port = app.port
   await app.stop()

@@ -5,6 +5,7 @@ import {
   floatingWorkspaceToWorktree,
   isFloatingWorkspaceSelector
 } from '../../shared/floating-workspace-worktree'
+import type { FloatingTerminalCwdRequest } from '../../shared/ui-chrome-types'
 import { resolveFloatingTerminalCwd } from '../ipc/floating-workspace-directory'
 import type { BrowserNetworkExecutionHost } from '../../shared/browser-client-host-protocol'
 import {
@@ -86,6 +87,10 @@ export class OrcaRuntimeWithResolveBrowserNetworkExecutionHostForWorktree extend
     return parsed?.type === 'folder'
       ? folderWorkspaceKey(parsed.folderWorkspaceId)
       : this.resolveEmulatorWorkspaceId(selector)
+  }
+
+  getFloatingTerminalCwd(args?: FloatingTerminalCwdRequest): Promise<string> {
+    return resolveFloatingTerminalCwd(this.requireStore(), args)
   }
 
   // Why one resolver: host-launched floating terminals and floating chat sessions run in the same

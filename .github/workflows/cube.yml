@@ -31,6 +31,9 @@ jobs:
           --config config/vitest.config.ts --maxWorkers=1
           src/renderer/src/web/web-preload-api-runtime-environment.test.ts
           src/renderer/src/web/web-preload-api-runtime-calls.test.ts
+          src/main/runtime/rpc/methods/floating-terminal-directory.test.ts
+          src/main/ipc/floating-workspace-directory.test.ts
+          src/renderer/src/components/onboarding/OnboardingInlineCommandTerminal.command-finished.test.tsx
       - name: Install browser for acceptance
         run: cube/tools/node/bin/node node_modules/@playwright/test/cli.js install --with-deps chromium
       - name: Real runtime and web acceptance
@@ -39,5 +42,7 @@ jobs:
         if: always()
         with:
           name: cube-browser-evidence
-          path: cube-smoke.png
+          path: |
+            cube-smoke.png
+            cube-onboarding.png
           if-no-files-found: ignore

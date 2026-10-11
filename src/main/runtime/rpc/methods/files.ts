@@ -9,6 +9,7 @@ import { limitQuickOpenSearchReplyBySerializedBytes } from '../../../../shared/q
 import { FileOpen, WorktreeSelector } from '../../../../shared/rpc-contract/files-target-params'
 import { FILE_TERMINAL_ARTIFACT_METHODS } from './files-terminal-artifact-methods'
 import {
+  FloatingTerminalDirectory,
   FilePathsExist,
   DocPreviewFileRead,
   FileListAll,
@@ -26,6 +27,12 @@ import {
 let filesWatchSubscriptionSeq = 0
 
 export const FILE_METHODS = [
+  defineMethod({
+    name: 'files.resolveFloatingTerminalCwd',
+    permission: 'workspace',
+    params: FloatingTerminalDirectory,
+    handler: async (params, { runtime }) => runtime.getFloatingTerminalCwd(params)
+  }),
   defineMethod({
     name: 'files.list',
     permission: 'workspace',

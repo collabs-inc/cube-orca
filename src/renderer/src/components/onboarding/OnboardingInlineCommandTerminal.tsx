@@ -78,6 +78,7 @@ export function OnboardingInlineCommandTerminal({
       window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     []
   )
+  const [startupError, setStartupError] = useState<string | null>(null)
   const [cwd, setCwd] = useState<string | null>(null)
   const [createdTab, setCreatedTab] = useState<{
     id: string
@@ -115,11 +116,21 @@ export function OnboardingInlineCommandTerminal({
 
   useEffect(() => {
     let cancelled = false
-    void window.api.app.getFloatingTerminalCwd({ path: '~' }).then((nextCwd) => {
-      if (!cancelled) {
-        setCwd(nextCwd)
-      }
-    })
+    void window.api.app
+      .getFloatingTerminalCwd({ path: '~' })
+      .then((nextCwd) => {
+        if (!nextCwd.trim()) {
+          throw new Error('The host returned an empty working directory.')
+        }
+        if (!cancelled) {
+          setCwd(nextCwd)
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setStartupError(error instanceof Error ? error.message : String(error))
+        }
+      })
     return () => {
       cancelled = true
     }
@@ -329,7 +340,14 @@ export function OnboardingInlineCommandTerminal({
           onKeyDownCapture={(event) => onInteracted?.('keyboard', event)}
           onPointerDownCapture={() => onInteracted?.('pointer')}
         >
-          {cwd && tabId ? (
+          {startupError ? (
+            <div
+              role="alert"
+              className="flex h-full items-center justify-center p-4 text-xs text-destructive"
+            >
+              {startupError}
+            </div>
+          ) : cwd && tabId ? (
             <TerminalPane
               tabId={tabId}
               worktreeId={worktreeId}

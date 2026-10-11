@@ -78,6 +78,34 @@ describe('OnboardingInlineCommandTerminal command-finished forwarding', () => {
     vi.useRealTimers()
   })
 
+  it.each(['empty', 'rejected'])(
+    'shows directory startup failure instead of spinning (%s)',
+    async (failure) => {
+      vi.mocked(window.api.app.getFloatingTerminalCwd).mockImplementation(async () => {
+        if (failure === 'rejected') {
+          throw new Error('Host disconnected')
+        }
+        return ''
+      })
+      container = document.createElement('div')
+      document.body.appendChild(container)
+      root = createRoot(container)
+      await act(async () => {
+        root?.render(
+          <OnboardingInlineCommandTerminal
+            command="echo ready"
+            title="Setup"
+            ariaLabel="Setup terminal"
+          />
+        )
+      })
+      expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+        failure === 'rejected' ? 'Host disconnected' : 'working directory'
+      )
+      expect(container.textContent).not.toContain('Starting terminal...')
+    }
+  )
+
   it('prepares auto-paste again when the resolved tab shell changes', async () => {
     vi.useFakeTimers()
     mocks.createTab

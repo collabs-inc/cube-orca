@@ -1,3 +1,4 @@
+import { callRuntimeResult } from './web-runtime-calls'
 import type { PreloadApi } from '../../../../preload/api-types'
 import { sanitizeWebRuntimeWorkspaceSession } from '../web-workspace-session'
 import { sessionStorageKeyForHost } from './web-workspace-session-api'
@@ -49,7 +50,8 @@ export function createWebAppApi(): Partial<PreloadApi> {
       getKeyboardLayoutSnapshot: () => Promise.resolve(null),
       onKeyboardLayoutChanged: () => () => undefined,
       setUnreadDockBadgeCount: () => Promise.resolve(),
-      getFloatingTerminalCwd: () => Promise.resolve(''),
+      getFloatingTerminalCwd: (args) =>
+        callRuntimeResult<string>('files.resolveFloatingTerminalCwd', args ?? {}),
       getFloatingMarkdownDirectory: () => Promise.resolve(''),
       pickFloatingMarkdownDocument: () => Promise.resolve(null),
       pickFloatingWorkspaceDirectory: () => Promise.resolve(null),

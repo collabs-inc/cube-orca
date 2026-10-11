@@ -16,6 +16,54 @@ describe('web preload runtime calls', () => {
     vi.doUnmock('./web-runtime-client')
   })
 
+  it('resolves setup terminal directories on the paired runtime', async () => {
+    const call = vi
+      .fn()
+      .mockResolvedValue({
+        id: 'cwd',
+        _meta: { runtimeId: 'test-runtime' },
+        ok: true,
+        result: '/home/cube-user'
+      })
+    vi.doMock('./web-runtime-client', () => ({
+      WebRuntimeClient: class {
+        call = call
+        close(): void {}
+      }
+    }))
+    const globals = installBrowserGlobals('Linux')
+    writeStoredRuntimeEnvironment(globals.storage, 'web-server-a')
+    const { installWebPreloadApi } = await import('./web-preload-api')
+    installWebPreloadApi()
+
+    await expect(globals.window.api.app.getFloatingTerminalCwd({ path: '~' })).resolves.toBe(
+      '/home/cube-user'
+    )
+    expect(call).toHaveBeenCalledWith(
+      'files.resolveFloatingTerminalCwd',
+      { path: '~' },
+      expect.anything()
+    )
+    await globals.window.api.app.getFloatingTerminalCwd({
+      path: '/untrusted',
+      requireTrusted: true
+    })
+    expect(call).toHaveBeenLastCalledWith(
+      'files.resolveFloatingTerminalCwd',
+      { path: '/untrusted', requireTrusted: true },
+      expect.anything()
+    )
+    call.mockResolvedValue({
+      id: 'cwd',
+      _meta: { runtimeId: 'test-runtime' },
+      ok: false,
+      error: { code: 'offline', message: 'Host disconnected' }
+    })
+    await expect(globals.window.api.app.getFloatingTerminalCwd()).rejects.toThrow(
+      'Host disconnected'
+    )
+  })
+
   it('preserves success and failure envelopes while persisting response runtime metadata', async () => {
     vi.doMock('./web-runtime-client', () => ({
       WebRuntimeClient: class {

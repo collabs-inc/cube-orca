@@ -118,3 +118,8 @@ export const FileUnwatch = z.object({
     .transform((value) => (typeof value === 'string' && value.length > 0 ? value : ''))
     .pipe(z.string().min(1, 'Missing subscriptionId'))
 })
+
+export const FloatingTerminalDirectory = z.object({
+  path: z.string().optional(),
+  requireTrusted: z.boolean().optional()
+})
