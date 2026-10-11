@@ -195,20 +195,27 @@ try {
       { timeout: 30000 }
     )
     const browserPageId = await tabHandle.jsonValue()
-    const geometryResponse = await page.evaluate(
-      (id) =>
-        window.api.runtime.call({
+    // A listed URL and first screencast frame can precede DOM navigation completion.
+    const geometryHandle = await page.waitForFunction(
+      async (id) => {
+        const response = await window.api.runtime.call({
           method: 'browser.eval',
           params: {
             page: id,
             expression:
-              'JSON.stringify({width:innerWidth,height:innerHeight,button:document.querySelector("button").getBoundingClientRect().toJSON(),input:document.querySelector("input").getBoundingClientRect().toJSON()})'
+              'JSON.stringify(document.querySelector("button") && document.querySelector("input") ? {width:innerWidth,height:innerHeight,button:document.querySelector("button").getBoundingClientRect().toJSON(),input:document.querySelector("input").getBoundingClientRect().toJSON()} : null)'
           }
-        }),
-      browserPageId
+        })
+        if (!response.ok) {
+          console.warn('Waiting for browser document:', response.error)
+          return false
+        }
+        return JSON.parse(response.result.result)
+      },
+      browserPageId,
+      { timeout: 30000 }
     )
-    assert.equal(geometryResponse.ok, true)
-    const geometry = JSON.parse(geometryResponse.result.result)
+    const geometry = await geometryHandle.jsonValue()
     const frame = page.getByTestId('remote-browser-frame')
     const bounds = await frame.boundingBox()
     for (const rect of [geometry.button, geometry.input]) {
