@@ -25,6 +25,12 @@ jobs:
         run: node cube/install.mjs
       - name: Gateway and lifecycle tests
         run: cube/tools/node/bin/node --test cube/*.test.mjs
+      - name: Upstream web pairing and runtime contracts
+        run: >-
+          cube/tools/node/bin/node node_modules/vitest/vitest.mjs run
+          --config config/vitest.config.ts --maxWorkers=1
+          src/renderer/src/web/web-preload-api-runtime-environment.test.ts
+          src/renderer/src/web/web-preload-api-runtime-calls.test.ts
       - name: Install browser for acceptance
         run: cube/tools/node/bin/node node_modules/@playwright/test/cli.js install --with-deps chromium
       - name: Real runtime and web acceptance
