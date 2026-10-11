@@ -46,11 +46,14 @@ async function start(port = 0) {
 }
 async function outputContains(nonce) {
   const deadline = Date.now() + 30000
+  let lastRead
   while (Date.now() < deadline) {
     const result = await cli(['terminal', 'read', '--terminal', terminal.handle])
+    lastRead = result.terminal
     if (result.terminal.tail.map(String).join('\n').includes(nonce)) return
     await new Promise((r) => setTimeout(r, 500))
   }
+  console.error('Fixture terminal read:', JSON.stringify(lastRead))
   throw Error('Terminal did not produce the expected output')
 }
 try {
@@ -90,7 +93,7 @@ try {
     '--terminal',
     terminal.handle,
     '--text',
-    `printf 'CUBE_PTY_%s\\n' '${suffix}'`,
+    `export CUBE_SMOKE_SESSION='${suffix}'; printf 'CUBE_PTY_%s\\n' \"$CUBE_SMOKE_SESSION\"`,
     '--enter'
   ])
   await outputContains(marker)
@@ -128,7 +131,18 @@ try {
     (await cli(['worktree', 'show', '--worktree', worktree.id])).worktree.id,
     worktree.id
   )
-  await outputContains(marker)
+  // A UI attachment can replace the runtime's short output snapshot. Prove
+  // process continuity with shell state, not a historical preview line.
+  await cli([
+    'terminal',
+    'send',
+    '--terminal',
+    terminal.handle,
+    '--text',
+    `printf 'CUBE_RESUMED_%s\\n' "$CUBE_SMOKE_SESSION"`,
+    '--enter'
+  ])
+  await outputContains('CUBE_RESUMED_' + suffix)
   if (page) {
     await page.goto(`http://127.0.0.1:${app.port}/`)
     await page.getByText('cube-smoke-repo', { exact: false }).first().waitFor({ timeout: 60000 })
