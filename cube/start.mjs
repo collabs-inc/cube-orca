@@ -10,6 +10,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const controller = new AbortController()
 process.once('SIGINT', () => controller.abort())
 process.once('SIGTERM', () => controller.abort())
+process.once('SIGHUP', () => controller.abort())
 try {
   const app = await launchOrca({
     root,
