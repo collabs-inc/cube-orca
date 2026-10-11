@@ -1,6 +1,6 @@
 // Cube integration: build the web UI and full headless Electron runtime.
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, writeFile, rename, rm, mkdtemp } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rename, rm, mkdtemp, copyFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -155,6 +155,11 @@ try {
     { env }
   )
   run(node, ['config/scripts/verify-web-build.mjs'], { env })
+  // Electron's development launcher expects out/cli; reuse the bundled CLI
+  // built for orcad rather than leaving managed agents without the orca command.
+  await mkdir(join(root, 'out/cli'), { recursive: true })
+  await copyFile(join(root, 'out/orcad/out/cli/index.js'), join(root, 'out/cli/index.js'))
+  await copyFile(join(root, 'out/orcad/out/package.json'), join(root, 'out/package.json'))
 } finally {
   await rm(temporary, { recursive: true, force: true })
 }

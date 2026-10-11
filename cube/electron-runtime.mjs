@@ -204,7 +204,7 @@ export async function launchElectronServe({
     child = spawn(
       electronExecutable,
       [
-        join(root, 'out/main/index.js'),
+        root,
         '--serve',
         '--serve-port',
         '0',

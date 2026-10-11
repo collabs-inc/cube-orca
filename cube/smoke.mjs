@@ -105,6 +105,18 @@ try {
   ])
   await outputContains(marker)
   console.log('PASS: repository, worktree and real PTY round trip through Cube gateway')
+  await cli([
+    'terminal',
+    'send',
+    '--terminal',
+    terminal.handle,
+    '--text',
+    `orca skills get orca-cli --json >/dev/null && orca repo list --json >/dev/null && printf 'CUBE_CLI_%s\\n' "${suffix}"`,
+    '--enter'
+  ])
+  await outputContains('CUBE_CLI_' + suffix)
+  console.log('PASS: managed terminal resolves its Orca skills CLI')
+
   if (process.argv.includes('--browser')) {
     const { chromium } = await import('@playwright/test')
     browser = await chromium.launch({ headless: true })
@@ -154,7 +166,7 @@ try {
     await new Promise((resolve) => browserTarget.listen(0, '127.0.0.1', resolve))
     const targetUrl = `http://127.0.0.1:${browserTarget.address().port}/`
     await page.getByRole('button', { name: 'New tab', exact: true }).click()
-    await page.getByText('New Browser Tab', { exact: true }).click()
+    await page.getByText('New Browser Tab', { exact: false }).click()
     await page.getByRole('combobox').fill(targetUrl)
     await page.getByRole('combobox').press('Enter')
     await page.getByTestId('remote-browser-frame').waitFor({ timeout: 30000 })
