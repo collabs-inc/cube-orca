@@ -109,8 +109,6 @@ for (const acrossReconnect of [false, true]) {
 
 test('a terminal link opens an image outside the managed workspace', async (// oxlint-disable-next-line no-empty-pattern -- Owns its app launch through a restart session.
 {}, testInfo) => {
-  // Why fixme: managed terminal paths stopped linkifying on main; ssh-orcad-terminal-root-owner fails the same way.
-  test.fixme(true, 'Managed terminal path links show no link tooltip on current main')
   test.setTimeout(10 * 60_000)
   const imagePath = '/tmp/orca-ssh-external-preview.png'
   const imageBase64 =
