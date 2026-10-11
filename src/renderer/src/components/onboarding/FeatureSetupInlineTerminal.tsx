@@ -98,6 +98,7 @@ export function FeatureSetupInlineTerminal({
       onOpened={trackTerminalOpened}
       onInteracted={trackTerminalInteraction}
       onTerminalExit={notifyInstalledAgentSkillsChanged}
+      onCommandFinished={notifyInstalledAgentSkillsChanged}
     />
   )
 }

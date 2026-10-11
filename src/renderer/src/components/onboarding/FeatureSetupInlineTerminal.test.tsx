@@ -4,6 +4,7 @@ import { render } from '@testing-library/react'
 import { FeatureSetupInlineTerminal } from './FeatureSetupInlineTerminal'
 
 const mocks = vi.hoisted(() => ({
+  notifySkillsChanged: vi.fn(),
   runtime: {
     agentRuntime: { runtime: 'wsl' as const, wslDistro: 'Ubuntu', label: 'WSL Ubuntu' },
     installDisabledReason: null as string | null,
@@ -18,11 +19,16 @@ const mocks = vi.hoisted(() => ({
       `${runtime?.runtime ?? 'host'}-${shellOverride ?? 'default'}:${command}`
   ),
   terminalProps: null as {
+    onCommandFinished?: (exitCode: number | null) => void
     command: string
     forceHostRuntime?: boolean
     prepareCommandForShell?: (command: string, shellOverride?: string) => string
     shellOverride?: string
   } | null
+}))
+
+vi.mock('@/hooks/useInstalledAgentSkills', () => ({
+  notifyInstalledAgentSkillsChanged: mocks.notifySkillsChanged
 }))
 
 vi.mock('@/hooks/useActiveProjectSkillRuntime', () => ({
@@ -36,6 +42,7 @@ vi.mock('../settings/CliSkillRuntimeSetup', () => ({
 
 vi.mock('./OnboardingInlineCommandTerminal', () => ({
   OnboardingInlineCommandTerminal: (props: {
+    onCommandFinished?: (exitCode: number | null) => void
     command: string
     forceHostRuntime?: boolean
     prepareCommandForShell?: (command: string, shellOverride?: string) => string
@@ -57,8 +64,17 @@ describe('FeatureSetupInlineTerminal', () => {
   beforeEach(() => {
     mocks.runtime.installDisabledReason = null
     mocks.terminalProps = null
+    mocks.notifySkillsChanged.mockClear()
     mocks.buildCommand.mockClear()
     mocks.buildSetupCommand.mockClear()
+  })
+
+  it('refreshes installed skills when the command finishes without closing the shell', () => {
+    render(
+      <FeatureSetupInlineTerminal command="npx skills add orchestration" selection={SELECTION} />
+    )
+    mocks.terminalProps?.onCommandFinished?.(0)
+    expect(mocks.notifySkillsChanged).toHaveBeenCalledOnce()
   })
 
   it('runs the command through the resolved WSL runtime', () => {

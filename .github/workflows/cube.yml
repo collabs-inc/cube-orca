@@ -39,6 +39,7 @@ jobs:
           src/main/runtime/rpc/methods/floating-terminal-directory.test.ts
           src/main/ipc/floating-workspace-directory.test.ts
           src/renderer/src/components/onboarding/OnboardingInlineCommandTerminal.command-finished.test.tsx
+          src/renderer/src/components/onboarding/FeatureSetupInlineTerminal.test.tsx
       - name: Install browser for acceptance
         run: cube/tools/node/bin/node node_modules/@playwright/test/cli.js install --with-deps chromium
       - name: Real runtime and web acceptance
