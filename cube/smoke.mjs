@@ -124,12 +124,15 @@ try {
   console.log('PASS: worktree and terminal persist across runtime restart')
 } finally {
   await browser?.close()
+  let cleaned = true
   if (app && worktree) {
     await cli(['worktree', 'rm', '--worktree', worktree.id, '--force']).catch((error) => {
+      cleaned = false
       console.error('Smoke cleanup failed:', error.message)
       process.exitCode = 1
     })
   }
   await app?.stop()
-  await rm(fixture, { recursive: true, force: true })
+  if (cleaned) await rm(fixture, { recursive: true, force: true })
+  else console.error(`Retained fixture state for terminal cleanup: ${fixture}`)
 }
