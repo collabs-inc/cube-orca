@@ -10,7 +10,12 @@ import {
   readSync,
   closeSync,
   symlinkSync,
-  renameSync
+  renameSync,
+  readFileSync,
+  writeFileSync,
+  readlinkSync,
+  lstatSync,
+  unlinkSync
 } from 'node:fs'
 
 function isCubeWrapper(path) {
@@ -29,11 +34,23 @@ function isCubeWrapper(path) {
 
 function managedAgentPath(state, path) {
   if (!path) return path
-  const directories = path.split(':').filter(Boolean)
-  const overrides = []
-  for (const agent of ['codex', 'claude', 'opencode']) {
+  const directory = resolve(state, 'cli', 'bin')
+  const record = join(directory, '.cube-managed-agents.json')
+  const agents = ['codex', 'claude', 'opencode']
+  let previous = {}
+  try {
+    const data = JSON.parse(readFileSync(record, 'utf8'))
+    for (const agent of agents) if (typeof data?.[agent] === 'string') previous[agent] = data[agent]
+  } catch {}
+  const directories = path
+    .split(':')
+    .filter(Boolean)
+    .map((entry) => resolve(entry))
+    .filter((entry) => entry !== directory)
+  const overrides = {}
+  for (const agent of agents) {
     const candidates = directories
-      .map((directory) => resolve(directory, agent))
+      .map((entry) => join(entry, agent))
       .filter((candidate) => {
         try {
           accessSync(candidate, constants.X_OK)
@@ -44,19 +61,43 @@ function managedAgentPath(state, path) {
       })
     if (!candidates.length || !isCubeWrapper(candidates[0])) continue
     const executable = candidates.find((candidate) => !isCubeWrapper(candidate))
-    if (executable) overrides.push([agent, executable])
+    if (executable) overrides[agent] = executable
   }
-  if (!overrides.length) return path
-  const directory = join(state, 'cli', 'bin')
-  mkdirSync(directory, { recursive: true, mode: 0o700 })
-  for (const [agent, executable] of overrides) {
+  const owned = (agent) => {
+    try {
+      return (
+        previous[agent] !== undefined && readlinkSync(join(directory, agent)) === previous[agent]
+      )
+    } catch {
+      return false
+    }
+  }
+  for (const agent of agents) {
+    if (previous[agent] && !overrides[agent] && owned(agent)) unlinkSync(join(directory, agent))
+  }
+  const current = {}
+  for (const [agent, executable] of Object.entries(overrides)) {
+    const destination = join(directory, agent)
+    try {
+      lstatSync(destination)
+      if (!owned(agent)) continue
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error
+    }
+    mkdirSync(directory, { recursive: true, mode: 0o700 })
     const temporary = join(directory, `${agent}.${process.pid}`)
     symlinkSync(executable, temporary)
-    renameSync(temporary, join(directory, agent))
+    renameSync(temporary, destination)
+    current[agent] = executable
+  }
+  if (Object.keys(current).length || Object.keys(previous).length) {
+    const temporary = `${record}.${process.pid}`
+    writeFileSync(temporary, JSON.stringify(current), { mode: 0o600 })
+    renameSync(temporary, record)
   }
   // Orca re-prepends this CLI directory after login-shell startup files reset PATH.
   // Keep Cube's URL openers in their original position; override only its agent wrappers.
-  return `${directory}:${path}`
+  return Object.keys(current).length ? `${directory}:${path}` : path
 }
 
 export function electronServeEnvironment(root, state, display, inherited = process.env) {

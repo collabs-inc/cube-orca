@@ -139,3 +139,29 @@ test('prefers real agents while retaining Cube URL opener commands on PATH', asy
     '/custom:/usr/bin'
   )
 })
+
+test('removes obsolete owned agent links without overwriting user commands', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'orca-cube-path-change-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const { mkdir, lstat, readFile } = await import('node:fs/promises')
+  const wrapper = join(root, 'cube'),
+    real = join(root, 'real'),
+    custom = join(root, 'custom'),
+    state = join(root, 'state')
+  for (const dir of [wrapper, real, custom]) await mkdir(dir)
+  await writeFile(
+    join(wrapper, 'codex'),
+    '#!/bin/sh\n# Written by cubed (shell-wrappers.ts): generated\n',
+    { mode: 0o755 }
+  )
+  for (const dir of [real, custom])
+    await writeFile(join(dir, 'codex'), '#!/bin/sh\nexit 0\n', { mode: 0o755 })
+  electronServeEnvironment(root, state, ':44', { PATH: `${wrapper}:${real}` })
+  electronServeEnvironment(root, state, ':44', {
+    PATH: `${state}/cli/bin:${custom}:${wrapper}:${real}`
+  })
+  await assert.rejects(lstat(join(state, 'cli/bin/codex')), { code: 'ENOENT' })
+  await writeFile(join(state, 'cli/bin/codex'), 'user command', { mode: 0o755 })
+  electronServeEnvironment(root, state, ':44', { PATH: `${wrapper}:${real}` })
+  assert.equal(await readFile(join(state, 'cli/bin/codex'), 'utf8'), 'user command')
+})
