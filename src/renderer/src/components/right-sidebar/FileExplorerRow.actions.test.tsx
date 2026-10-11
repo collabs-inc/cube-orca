@@ -109,7 +109,8 @@ describe('FileExplorerRow collapse folder action', () => {
     ;(globalThis as { __ORCA_WEB_CLIENT__?: boolean }).__ORCA_WEB_CLIENT__ = true
 
     expect(shouldShowRemoteDownloadAction(fileNode, 'ssh-1')).toBe(false)
-    expect(shouldShowRemoteDownloadAction(fileNode, null, runtimeContext)).toBe(false)
+    expect(shouldShowRemoteDownloadAction(fileNode, null, runtimeContext)).toBe(true)
+    expect(shouldShowRemoteDownloadAction(directoryNode, null, runtimeContext)).toBe(false)
   })
 
   it('shows OS file copy for single local rows and SSH file rows on desktop', () => {
@@ -324,6 +325,23 @@ describe('FileExplorerRow collapse folder action', () => {
       }
     })
     expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('hands web downloads to the browser without offering a native Open action', async () => {
+    vi.stubGlobal('window', { ...window, __ORCA_WEB_CLIENT__: true })
+    downloadRuntimeFileMock.mockResolvedValueOnce({ canceled: false, destinationPath: 'index.ts' })
+    setDownloadPlatform('linux')
+    try {
+      await downloadRemoteFile(fileNode, {
+        target: { kind: 'environment', environmentId: 'runtime-1' },
+        worktreeId: 'wt-1',
+        worktreePath: '/repo'
+      })
+      expect(toastSuccessMock).toHaveBeenCalledWith("Download started: 'index.ts'")
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('shows a failure toast when remote download fails', async () => {

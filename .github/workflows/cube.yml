@@ -37,6 +37,10 @@ jobs:
         run: >-
           cube/tools/node/bin/node node_modules/vitest/vitest.mjs run
           --config config/vitest.config.ts --maxWorkers=1
+          src/renderer/src/web/web-file-download.test.ts
+          src/renderer/src/web/web-preload-api-filesystem.test.ts
+          src/renderer/src/runtime/runtime-file-client-download.test.ts
+          src/renderer/src/components/right-sidebar/FileExplorerRow.actions.test.tsx
           src/renderer/src/web/web-preload-api-runtime-environment.test.ts
           src/renderer/src/web/web-preload-api-runtime-calls.test.ts
           src/renderer/src/web/web-workspace-selection.test.ts
