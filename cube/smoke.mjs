@@ -226,6 +226,9 @@ try {
       )
     await verifyBrowserInput()
     await page.reload()
+    // Web rebuilds live tabs from the runtime after reload; it deliberately
+    // discards persisted remote selection handles. Reopen the retained page.
+    await page.getByText('Cube browser acceptance', { exact: true }).click()
     await page.getByTestId('remote-browser-frame').waitFor({ timeout: 30000 })
     await verifyBrowserInput()
     console.log('PASS: browser stream, mouse, keyboard, and web reload')
