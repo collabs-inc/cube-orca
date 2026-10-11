@@ -28,13 +28,16 @@ export async function launchOrca({
   port,
   state,
   entry = join(root, 'out/orcad/orcad.js'),
-  timeoutMs = 90000
+  timeoutMs = 90000,
+  env = process.env,
+  signal
 }) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw Error('Invalid Cube port')
   await mkdir(state, { recursive: true, mode: 0o700 })
+  signal?.throwIfAborted()
   const child = spawn(process.execPath, [entry, '--port', '0', '--bind', '127.0.0.1', '--json'], {
     cwd: root,
-    env: { ...process.env, ORCA_USER_DATA: state, ORCA_BACKGROUND_LAUNCH: '1' },
+    env: { ...env, ORCA_USER_DATA: state, ORCA_BACKGROUND_LAUNCH: '1' },
     stdio: ['ignore', 'pipe', 'inherit']
   })
   let server
@@ -58,14 +61,17 @@ export async function launchOrca({
     await closed
     clearTimeout(force)
   }
+  const abort = () => void stop()
+  signal?.addEventListener('abort', abort, { once: true })
   child.once('close', () => {
+    signal?.removeEventListener('abort', abort)
     server?.closeClients()
     server?.close()
   })
   try {
     const readiness = await new Promise((resolve, reject) => {
       const lines = createInterface({ input: child.stdout })
-      const timer = setTimeout(() => reject(Error('Orca did not become ready in time')), timeoutMs)
+      const timer = setTimeout(() => { cleanup(); reject(Error('Orca did not become ready in time')) }, timeoutMs)
       const cleanup = () => {
         clearTimeout(timer)
         lines.close()
@@ -95,6 +101,8 @@ export async function launchOrca({
         }
       })
     })
+    signal?.throwIfAborted()
+    if (child.exitCode !== null) throw Error('Orca exited during startup')
     // The readiness line contains credentials. Do not forward stdout to Cube logs.
     child.stdout.resume()
     server = createCubeServer({
@@ -109,6 +117,7 @@ export async function launchOrca({
     return { port: server.address().port, pid: child.pid, stop, closed }
   } catch (error) {
     await stop()
+    if (signal?.aborted) throw Error('Orca startup aborted')
     throw error
   }
 }
