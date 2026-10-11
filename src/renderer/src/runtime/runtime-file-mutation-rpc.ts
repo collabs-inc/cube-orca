@@ -14,6 +14,7 @@ export type RuntimeFileImportSession = {
   expectedEnvironmentConnectionGeneration: number
   expectedEnvironmentRuntimeId: string
   assertCurrent: () => void
+  assertCleanupCurrent: () => void
 }
 
 export async function assertRuntimeFileMutationCapability(
@@ -79,4 +80,18 @@ export function callRuntimeFileImportMutation<TResult>(
     expectedEnvironmentPairingRevision: session.expectedEnvironmentPairingRevision,
     expectedEnvironmentRuntimeId: session.expectedEnvironmentRuntimeId
   })
+}
+
+export function callRuntimeFileImportCleanup<TResult>(
+  session: RuntimeFileImportSession,
+  params: unknown,
+  timeoutMs: number
+): Promise<TResult> {
+  // A changed selection cancels the upload, but its original host still owns cleanup.
+  return callRuntimeFileImportMutation(
+    { ...session, assertCurrent: session.assertCleanupCurrent },
+    'files.delete',
+    params,
+    timeoutMs
+  )
 }

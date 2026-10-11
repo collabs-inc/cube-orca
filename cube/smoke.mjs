@@ -154,6 +154,29 @@ try {
     assert.equal(download.suggestedFilename(), 'download-proof.bin')
     assert.deepEqual(await readFile(downloadedPath), downloadBytes)
     console.log('PASS: browser file download preserves multi-chunk binary bytes')
+    const uploadBytes = Buffer.concat([downloadBytes.subarray(0, 800000), Buffer.from('upload')])
+    await page.getByRole('button', { name: 'Upload files', exact: true }).click()
+    await page.getByLabel('Files to upload', { exact: true }).setInputFiles([
+      { name: 'download-proof.bin', mimeType: 'application/octet-stream', buffer: uploadBytes },
+      { name: 'empty-upload.txt', mimeType: 'text/plain', buffer: Buffer.alloc(0) },
+      {
+        name: 'unicode-upload.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('Hello, Cube — 你好')
+      }
+    ])
+    await page
+      .getByRole('button', { name: 'Upload files', exact: true })
+      .waitFor({ timeout: 30000 })
+    assert.deepEqual(await readFile(join(worktree.path, 'download-proof copy.bin')), uploadBytes)
+    assert.deepEqual(await readFile(join(worktree.path, 'download-proof.bin')), downloadBytes)
+    assert.equal((await readFile(join(worktree.path, 'empty-upload.txt'))).length, 0)
+    assert.equal(
+      await readFile(join(worktree.path, 'unicode-upload.txt'), 'utf8'),
+      'Hello, Cube — 你好'
+    )
+    console.log('PASS: browser picker uploads binary, empty and Unicode files without overwriting')
+
     await page.removeLocatorHandler(page.getByRole('dialog'))
     await page.getByRole('button', { name: 'Onboarding checklist' }).click()
     await page.getByRole('button', { name: /Give agents Orca skills/ }).click()

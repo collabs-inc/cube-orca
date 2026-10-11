@@ -1,3 +1,4 @@
+import { runtimeEnvironmentRevisionFailure } from '../../../../shared/runtime-environment-revision-guard'
 import { parseExecutionHostId, toRuntimeExecutionHostId } from '../../../../shared/execution-host'
 import type { ExecutionHostId } from '../../../../shared/execution-host'
 import type { Repo } from '../../../../shared/repo-types'
@@ -52,15 +53,36 @@ export async function callEnvironmentEnvelope<TResult = unknown>(
   selector: string,
   method: string,
   params?: unknown,
-  timeoutMs?: number
+  timeoutMs?: number,
+  expectedPairingRevision?: number,
+  expectedRuntimeId?: string
 ): Promise<RuntimeRpcResponse<TResult>> {
   const environment = resolveEnvironment(selector)
+  const initialFailure = runtimeEnvironmentRevisionFailure(
+    environment,
+    expectedPairingRevision,
+    method,
+    expectedRuntimeId
+  )
+  if (initialFailure) {
+    return initialFailure
+  }
   if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
     return manuallyDisconnectedResponse(environment)
   }
   const response = await runtimeCallQueuePool.enqueue(environment.id, method, () => {
     if (manuallyDisconnectedEnvironmentIds.has(environment.id)) {
       return Promise.resolve(manuallyDisconnectedResponse(environment))
+    }
+    const current = resolveEnvironment(environment.id)
+    const failure = runtimeEnvironmentRevisionFailure(
+      current,
+      expectedPairingRevision,
+      method,
+      expectedRuntimeId
+    )
+    if (failure) {
+      return Promise.resolve(failure)
     }
     return getClientForEnvironment(environment).call(method, params, { timeoutMs })
   })

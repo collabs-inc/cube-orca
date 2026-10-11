@@ -22,6 +22,7 @@ import {
 import { isMissingPathError, resolveRuntimeFilePath } from './web-runtime-worktree-catalog'
 import { noopUnsubscribe } from './web-storage'
 import { createWebFileDownloads } from './web-file-downloads'
+import { createWebFileUploads } from './web-file-uploads'
 
 export function createFileApi(): NonNullable<Partial<PreloadApi>['fs']> {
   const searches = new Map<string, AbortController>()
@@ -148,12 +149,7 @@ export function createFileApi(): NonNullable<Partial<PreloadApi>['fs']> {
       }
     },
     importExternalPaths: async () => ({ results: [] }),
-    stageExternalPathsForRuntimeUpload: async () => ({ sources: [] }),
-    // Why: the web client has no local filesystem to stream from, so staging
-    // never yields a source for this to upload.
-    uploadExternalFileToRuntime: async () => {
-      throw new Error('Uploading local files is not supported in the web client')
-    },
+    ...createWebFileUploads(),
     resolveDroppedPathsForAgent: async () => ({ resolvedPaths: [], skipped: [], failed: [] }),
     uploadPathsToAgentSessionAttachments: async () => ({ uploaded: [], skipped: [], failed: [] }),
     watchWorktree: () => Promise.resolve(),

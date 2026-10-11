@@ -14,6 +14,7 @@ import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 
 type FileExplorerToolbarProps = {
+  uploadAction?: React.ReactNode
   repoName: string
   worktreePath: string
   connectionId?: string | null
@@ -36,6 +37,7 @@ type FileExplorerToolbarProps = {
 
 /** Shares repository actions across explorer views. */
 export function FileExplorerToolbar({
+  uploadAction,
   repoName,
   worktreePath,
   connectionId,
@@ -59,6 +61,7 @@ export function FileExplorerToolbar({
       >
         {repoName}
       </span>
+      {uploadAction}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

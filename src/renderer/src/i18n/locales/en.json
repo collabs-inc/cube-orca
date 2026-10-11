@@ -18022,6 +18022,13 @@
     }
   },
   "components": {
+    "browserFileUpload": {
+      "upload": "Upload files",
+      "uploading": "Uploading files…",
+      "files": "Files to upload",
+      "uploaded": "Uploaded {{count}} file(s)",
+      "failed": "Could not upload {{count}} file(s)"
+    },
     "onboarding": {
       "flow": {
         "stepTooltip": {

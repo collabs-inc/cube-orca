@@ -8,6 +8,7 @@ import { runtimePathExists } from './runtime-file-metadata-client'
 import {
   assertRuntimeFileMutationCapability,
   callRuntimeFileImportMutation,
+  callRuntimeFileImportCleanup,
   createRuntimeImportSessionGuard
 } from './runtime-file-mutation-rpc'
 import type { RuntimeFileImportSession } from './runtime-file-mutation-rpc'
@@ -74,7 +75,12 @@ export async function importExternalPathsToRuntime(
     expectedEnvironmentPairingRevision,
     expectedEnvironmentConnectionGeneration,
     expectedEnvironmentRuntimeId,
-    assertCurrent: assertImportSessionCurrent
+    assertCurrent: assertImportSessionCurrent,
+    assertCleanupCurrent: createRuntimeImportSessionGuard(
+      target.environmentId,
+      expectedEnvironmentPairingRevision,
+      expectedEnvironmentConnectionGeneration
+    )
   }
   importSession.assertCurrent()
   const staged = await window.api.fs.stageExternalPathsForRuntimeUpload({ sourcePaths })
@@ -154,9 +160,8 @@ export async function importExternalPathsToRuntime(
       if (createdDirectoryImportRoot) {
         // Why: match local directory imports by removing the no-clobber root
         // Orca created when a nested runtime upload fails halfway through.
-        await callRuntimeFileImportMutation(
+        await callRuntimeFileImportCleanup(
           importSession,
-          'files.delete',
           withSshMutationExpectation(context, {
             worktree: toRuntimeWorktreeSelector(context.worktreeId),
             relativePath: createdDirectoryImportRoot,

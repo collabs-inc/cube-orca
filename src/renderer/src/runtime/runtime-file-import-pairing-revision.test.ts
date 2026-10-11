@@ -203,6 +203,43 @@ describe('runtime file import pairing revision', () => {
     expectEveryRuntimeCallBoundToCapturedRevision(nestedSshContext)
   })
 
+  it('cleans the captured temporary file after selection changes mid-upload', async () => {
+    mockStagedFile('/client/drop.txt', 'drop.txt', 512 * 1024)
+    let selectionCurrent = true
+    runtimeEnvironmentCall.mockImplementation(async (args: RuntimeCallArgs) => {
+      if (args.method === 'status.get') {
+        return runtimeStatusResponse()
+      }
+      if (args.method === 'files.stat') {
+        return missingRuntimePathResponse()
+      }
+      return successfulRuntimeResponse(args.method)
+    })
+    uploadExternalFileToRuntime.mockImplementation(async () => {
+      selectionCurrent = false
+      throw new Error('Upload destination changed')
+    })
+    await expect(
+      importExternalPathsToRuntime(nestedSshContext, ['/client/drop.txt'], '/ssh/repo', {
+        assertCurrent: () => {
+          if (!selectionCurrent) {
+            throw new Error('Upload destination changed')
+          }
+        }
+      })
+    ).resolves.toMatchObject({ results: [{ status: 'failed' }] })
+    expect(runtimeEnvironmentCall.mock.calls.map(([args]) => args.method)).toEqual([
+      'status.get',
+      'files.stat',
+      'files.delete'
+    ])
+    expect(runtimeEnvironmentCall.mock.calls.at(-1)?.[0].params).toMatchObject({
+      relativePath: expect.stringMatching(/^\.drop\.txt\.orca-upload-/),
+      recursive: false
+    })
+    expectEveryRuntimeCallBoundToCapturedRevision(nestedSshContext)
+  })
+
   it('stops when the HUB runtime changes without a pairing change', async () => {
     mockStagedFile('/client/screenshot.png', 'screenshot.png', 40 * 1024 * 1024)
     runtimeEnvironmentCall.mockImplementation(async (args: RuntimeCallArgs) => {

@@ -23,6 +23,7 @@ import { FileExplorerFilesTreePane } from './FileExplorerFilesTreePane'
 import { FileExplorerNameFilter } from './FileExplorerNameFilter'
 import { FileExplorerQueryStrip } from './FileExplorerQueryStrip'
 import { FileExplorerToolbar } from './FileExplorerToolbar'
+import { BrowserFileUploadButton } from './BrowserFileUploadButton'
 import { SearchFilters } from './SearchFilters'
 import { SearchQueryRow } from './SearchQueryRow'
 import { SearchResultsPane } from './SearchResultsPane'
@@ -260,6 +261,23 @@ function FileExplorerFiles(): React.JSX.Element {
         className="flex min-h-0 flex-1 flex-col"
       >
         <FileExplorerToolbar
+          uploadAction={
+            isFilesViewActive ? (
+              <BrowserFileUploadButton
+                worktreeId={activeWorktreeId}
+                worktreePath={worktreePath}
+                destinationDir={selectedNode?.isDirectory ? selectedNode.path : displayRootPath}
+                operationOwner={tree.rootCache?.operationOwner}
+                onUploaded={() =>
+                  tree.refreshDir(
+                    selectedNode?.isDirectory
+                      ? selectedNode.path
+                      : (displayRootPath ?? worktreePath)
+                  )
+                }
+              />
+            ) : undefined
+          }
           repoName={repoName}
           worktreePath={worktreePath}
           {...getRouteForLocalPathOpenOwner(openInOwner)}

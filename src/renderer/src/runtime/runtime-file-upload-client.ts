@@ -4,6 +4,7 @@ import type { StagedRuntimeUploadFileIdentity } from '../../../shared/runtime-up
 import type { RuntimeFileOperationArgs } from './runtime-file-client-types'
 import {
   callRuntimeFileImportMutation,
+  callRuntimeFileImportCleanup,
   type RuntimeFileImportSession
 } from './runtime-file-mutation-rpc'
 import {
@@ -70,9 +71,8 @@ export async function uploadRuntimeFileWithoutClobber(
       30_000
     )
   } finally {
-    await callRuntimeFileImportMutation(
+    await callRuntimeFileImportCleanup(
       session,
-      'files.delete',
       {
         worktree: toRuntimeWorktreeSelector(worktreeId),
         relativePath: tempRelativePath,
