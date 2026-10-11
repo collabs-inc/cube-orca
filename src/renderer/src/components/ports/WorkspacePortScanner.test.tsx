@@ -219,6 +219,20 @@ afterEach(() => {
 })
 
 describe('WorkspacePortScanner', () => {
+  it('scans the paired server without a phantom browser-local host', async () => {
+    vi.stubGlobal('window', { ...window, __ORCA_WEB_CLIENT__: true })
+    runtimeEnvironmentCall.mockResolvedValue({ ok: true, result: liveScan })
+
+    await act(async () => {
+      root?.render(<WorkspacePortScanner />)
+      await flushPromises()
+    })
+
+    expect(localScan).not.toHaveBeenCalled()
+    expect(Object.keys(useAppStore.getState().workspacePortScansByKey)).toEqual([remoteScanKey])
+    expect(getPublishedRemoteWorktreePorts()).toHaveLength(1)
+  })
+
   it('turns a missing runtime scan payload into an unavailable result', async () => {
     runtimeEnvironmentCall.mockResolvedValue({ ok: true, result: undefined })
 

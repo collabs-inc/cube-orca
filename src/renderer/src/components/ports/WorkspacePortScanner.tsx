@@ -16,6 +16,7 @@ import {
 } from '@/lib/workspace-port-scan-debounce'
 import type { WorkspacePortScanResult } from '../../../../shared/workspace-ports'
 import { buildExecutionHostRegistry } from '../../../../shared/execution-host-registry'
+import { isWebClientLocation } from '@/lib/web-client-location'
 
 const WORKSPACE_PORT_SCAN_INTERVAL_MS = 30_000
 const WORKSPACE_PORT_ADVERTISED_URL_SETTLE_MS = 1_000
@@ -38,6 +39,7 @@ function makeUnavailableScan(reason: string): WorkspacePortScanResult {
 }
 
 export function WorkspacePortScanner({ enabled = true }: { enabled?: boolean }): null {
+  const webClient = isWebClientLocation()
   const settings = useAppStore((s) => s.settings)
   const repos = useAppStore((s) => s.repos)
   const hasWorktrees = useAppStore(getHasAnyWorktreesFromState)
@@ -56,8 +58,11 @@ export function WorkspacePortScanner({ enabled = true }: { enabled?: boolean }):
     () =>
       buildExecutionHostRegistry({ repos, settings })
         .map((host) => runtimeTargetForExecutionHostId(host.id))
-        .filter((target): target is NonNullable<typeof target> => target !== null),
-    [repos, settings]
+        .filter(
+          (target): target is NonNullable<typeof target> =>
+            target !== null && (!webClient || target.kind === 'environment')
+        ),
+    [repos, settings, webClient]
   )
   const scanTargetsSignature = useMemo(
     () =>
