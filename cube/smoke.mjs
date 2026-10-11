@@ -22,7 +22,7 @@ const env = {
   ORCA_USER_DATA: join(home, 'state'),
   ORCA_BACKGROUND_LAUNCH: '1'
 }
-let app, pairing, worktree, terminal, browser
+let app, pairing, worktree, terminal, browser, page
 async function cli(args) {
   // Async is essential: this process also serves the gateway used by the CLI.
   const { stdout } = await exec(
@@ -95,7 +95,6 @@ try {
   ])
   await outputContains(marker)
   console.log('PASS: repository, worktree and real PTY round trip through Cube gateway')
-  let page
   if (process.argv.includes('--browser')) {
     const { chromium } = await import('@playwright/test')
     browser = await chromium.launch({ headless: true })
@@ -106,8 +105,21 @@ try {
     assert.equal(new URL(page.url()).hash, '')
     await page.reload()
     await page.getByText('cube-smoke-repo', { exact: false }).first().waitFor({ timeout: 60000 })
+    // Dismiss upstream first-run tips through their real controls, then open the
+    // worktree so acceptance proves the terminal surface renders as well.
+    for (let i = 0; i < 8; i++) {
+      const close = page.getByRole('dialog').getByRole('button', { name: 'Close', exact: true })
+      if (!(await close.isVisible())) break
+      await close.click()
+      await page.waitForTimeout(200)
+    }
+    await page
+      .locator(`[role="option"][data-worktree-id=${JSON.stringify(worktree.id)}]`)
+      .first()
+      .click()
+    await page.locator('.xterm-screen').first().waitFor({ timeout: 30000 })
     await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true })
-    console.log('PASS: real web client pairing, repository rendering and reload')
+    console.log('PASS: real web client pairing, terminal rendering and reload')
   }
   const port = app.port
   await app.stop()
@@ -123,6 +135,8 @@ try {
   }
   console.log('PASS: worktree and terminal persist across runtime restart')
 } finally {
+  if (page)
+    await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true }).catch(() => {})
   await browser?.close()
   let cleaned = true
   if (app && worktree) {
