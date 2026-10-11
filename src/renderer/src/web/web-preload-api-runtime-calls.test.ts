@@ -17,14 +17,12 @@ describe('web preload runtime calls', () => {
   })
 
   it('resolves setup terminal directories on the paired runtime', async () => {
-    const call = vi
-      .fn()
-      .mockResolvedValue({
-        id: 'cwd',
-        _meta: { runtimeId: 'test-runtime' },
-        ok: true,
-        result: '/home/cube-user'
-      })
+    const call = vi.fn().mockResolvedValue({
+      id: 'cwd',
+      _meta: { runtimeId: 'test-runtime' },
+      ok: true,
+      result: '/home/cube-user'
+    })
     vi.doMock('./web-runtime-client', () => ({
       WebRuntimeClient: class {
         call = call
@@ -62,6 +60,30 @@ describe('web preload runtime calls', () => {
     await expect(globals.window.api.app.getFloatingTerminalCwd()).rejects.toThrow(
       'Host disconnected'
     )
+  })
+
+  it('reads resource usage from the paired runtime instead of fabricating zeroes', async () => {
+    const snapshot = { totalMemory: 123456, worktrees: [{ id: 'remote-worktree' }] }
+    const call = vi.fn().mockResolvedValue({ id: 'memory', _meta: {}, ok: true, result: snapshot })
+    vi.doMock('./web-runtime-client', () => ({
+      WebRuntimeClient: class {
+        call = call
+        close(): void {}
+      }
+    }))
+    const globals = installBrowserGlobals('Linux')
+    writeStoredRuntimeEnvironment(globals.storage)
+    const { installWebPreloadApi } = await import('./web-preload-api')
+    installWebPreloadApi()
+    await expect(globals.window.api.memory.getSnapshot()).resolves.toEqual(snapshot)
+    expect(call).toHaveBeenCalledWith('diagnostics.memory', undefined, expect.anything())
+    call.mockResolvedValue({
+      id: 'memory',
+      _meta: {},
+      ok: false,
+      error: { code: 'offline', message: 'Host disconnected' }
+    })
+    await expect(globals.window.api.memory.getSnapshot()).rejects.toThrow('Host disconnected')
   })
 
   it('preserves success and failure envelopes while persisting response runtime metadata', async () => {
