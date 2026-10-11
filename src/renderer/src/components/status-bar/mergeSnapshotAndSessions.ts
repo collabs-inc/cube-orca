@@ -140,7 +140,7 @@ export function mergeSnapshotAndSessions(
   }
 
   // ── Step 1: ingest snapshot worktrees as the local-truth foundation.
-  if (snapshot) {
+  if (snapshot && !snapshot.runtimeHostId) {
     for (const wt of snapshot.worktrees as readonly WorktreeMemory[]) {
       const worktree = resolveResourceFolderWorkspace(ctx, wt.worktreeId)
       const repoId = worktree?.repoId ?? wt.repoId
@@ -161,7 +161,18 @@ export function mergeSnapshotAndSessions(
   }
 
   // ── Step 1b: each paired server's own samples, attributed only to workspaces it hosts.
-  for (const host of ctx.runtimeHostResources ?? []) {
+  const hostSamples = [...(ctx.runtimeHostResources ?? [])]
+  if (
+    snapshot?.runtimeHostId &&
+    !hostSamples.some((host) => host.hostId === snapshot.runtimeHostId)
+  ) {
+    hostSamples.push({
+      hostId: snapshot.runtimeHostId,
+      hostLabel: snapshot.runtimeHostId,
+      worktrees: snapshot.worktrees
+    })
+  }
+  for (const host of hostSamples) {
     for (const wt of host.worktrees) {
       const worktree = resolveResourceFolderWorkspace(ctx, wt.worktreeId)
       const repoId = worktree?.repoId ?? wt.repoId

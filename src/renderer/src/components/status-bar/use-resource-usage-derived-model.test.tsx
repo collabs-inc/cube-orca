@@ -26,14 +26,16 @@ const sampled: WorktreeMemory = {
 }
 const group = { id: 'group', name: 'Local project', executionHostId: 'local' } as ProjectGroup
 
-function derive(
+function deriveModel(
   worktrees: Worktree[],
   sessions: DaemonSession[] = [],
   row = sampled,
   projectGroups = [group],
-  browserTabsByWorktree: Record<string, BrowserWorkspace[]> = {}
+  browserTabsByWorktree: Record<string, BrowserWorkspace[]> = {},
+  runtimeHostId?: `runtime:${string}`
 ) {
   const snapshot = {
+    runtimeHostId,
     worktrees: [row],
     host: { totalMemory: 16384 },
     totalMemory: 2048,
@@ -63,8 +65,18 @@ function derive(
       snapshot,
       spaceScanReady: false
     })
-  ).result.current.unifiedRepos
+  ).result.current
 }
+
+function derive(...args: Parameters<typeof deriveModel>) {
+  return deriveModel(...args).unifiedRepos
+}
+
+it('counts paired runtime sessions without a browser-local daemon inventory', () => {
+  expect(deriveModel([local], [], sampled, [group], {}, 'runtime:paired').triggerSessionCount).toBe(
+    1
+  )
+})
 
 afterEach(cleanup)
 

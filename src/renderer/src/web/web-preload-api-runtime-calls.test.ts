@@ -75,7 +75,10 @@ describe('web preload runtime calls', () => {
     writeStoredRuntimeEnvironment(globals.storage)
     const { installWebPreloadApi } = await import('./web-preload-api')
     installWebPreloadApi()
-    await expect(globals.window.api.memory.getSnapshot()).resolves.toEqual(snapshot)
+    await expect(globals.window.api.memory.getSnapshot()).resolves.toEqual({
+      ...snapshot,
+      runtimeHostId: 'runtime:web-env-1'
+    })
     expect(call).toHaveBeenCalledWith('diagnostics.memory', undefined, expect.anything())
     call.mockResolvedValue({
       id: 'memory',

@@ -460,6 +460,36 @@ describe('mergeSnapshotAndSessions', () => {
     })
   })
 
+  it.each([false, true])(
+    'keeps web host samples remote and unique (separate host sample: %s)',
+    (separatelySampled) => {
+      const wt: WorktreeMemory = {
+        worktreeId: 'unknown::/repo',
+        worktreeName: 'Other client',
+        repoId: 'unknown',
+        repoName: 'Other client',
+        cpu: 1,
+        memory: 100,
+        history: [],
+        sessions: [{ sessionId: 'remote-pty', paneKey: null, pid: 1, cpu: 1, memory: 100 }]
+      }
+      const snapshot = { ...makeSnapshot([wt]), runtimeHostId: 'runtime:env-1' as const }
+      const ctx = baseCtx({
+        runtimeHostResources: separatelySampled
+          ? [{ hostId: 'runtime:env-1', hostLabel: 'Cube', worktrees: [wt] }]
+          : []
+      })
+      const groups = mergeSnapshotAndSessions(snapshot, [], ctx)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].repoId).toBe('runtime:env-1|unknown')
+      expect(groups[0].worktrees).toHaveLength(1)
+      expect(groups[0].worktrees[0]).toMatchObject({
+        isRemote: true,
+        sessions: [{ sessionId: 'remote-pty', readOnly: true }]
+      })
+    }
+  )
+
   it("lists a paired server's own samples under the projects it hosts, read-only", () => {
     const serverWt: WorktreeMemory = {
       worktreeId: 'runtime-repo::/srv/Wt',

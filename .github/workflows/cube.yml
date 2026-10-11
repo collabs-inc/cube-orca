@@ -32,6 +32,8 @@ jobs:
           src/renderer/src/web/web-preload-api-runtime-environment.test.ts
           src/renderer/src/web/web-preload-api-runtime-calls.test.ts
           src/main/codex-cli/command.test.ts
+          src/renderer/src/components/status-bar/mergeSnapshotAndSessions.test.ts
+          src/renderer/src/components/status-bar/use-resource-usage-derived-model.test.tsx
           src/main/runtime/rpc/methods/floating-terminal-directory.test.ts
           src/main/ipc/floating-workspace-directory.test.ts
           src/renderer/src/components/onboarding/OnboardingInlineCommandTerminal.command-finished.test.tsx

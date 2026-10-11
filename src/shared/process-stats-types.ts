@@ -80,6 +80,8 @@ export type HostMemory = {
 }
 
 export type MemorySnapshot = {
+  /** Set by web clients when samples belong to a paired runtime. */
+  runtimeHostId?: `runtime:${string}`
   app: AppMemory
   worktrees: WorktreeMemory[]
   host: HostMemory

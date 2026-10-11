@@ -145,7 +145,13 @@ export function useResourceUsageDerivedModel({
 
   // Why: open and closed badges share the same daemon inventory cache. The old
   // closed path used boundPtyIds (wake hints) and inflated the chip to 60+.
-  const triggerSessionCount = sessionCount
+  const triggerSessionCount = resourceSnapshot?.runtimeHostId
+    ? new Set(
+        resourceSnapshot.worktrees.flatMap((worktree) =>
+          worktree.sessions.map((session) => session.sessionId)
+        )
+      ).size
+    : sessionCount
 
   const memoryMetricCopy = getResourceMemoryMetricCopy(
     resourceSnapshot?.processMemoryMetric ?? 'rss'
