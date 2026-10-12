@@ -55,6 +55,9 @@ jobs:
           src/renderer/src/components/automations/automation-host-catalog-source.test.ts
           src/renderer/src/components/automations/automation-host-filter-resolution.test.ts
           src/renderer/src/components/ports/WorkspacePortScanner.test.tsx
+          src/renderer/src/components/status-bar/status-bar-density.visibility.test.tsx
+          src/renderer/src/components/status-bar/status-bar-density.test.ts
+          src/renderer/src/components/status-bar/status-bar-usage-collapse.test.ts
           src/renderer/src/components/status-bar/PortsStatusSegment.host-routing.test.tsx
           src/main/codex-cli/command.test.ts
           src/main/startup/serve-options.test.ts
