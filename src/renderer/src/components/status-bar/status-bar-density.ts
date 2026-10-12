@@ -106,7 +106,8 @@ export function useStatusBarDensity(): {
 
   const evaluate = useCallback((): void => {
     const bar = barElementRef.current
-    if (!bar) {
+    // Hidden app frames have no layout; measuring them can make density probing oscillate.
+    if (!bar || bar.clientWidth === 0) {
       return
     }
     const style = getComputedStyle(bar)

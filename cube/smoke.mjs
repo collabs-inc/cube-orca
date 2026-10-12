@@ -142,6 +142,17 @@ try {
     await page.locator('.xterm-screen').first().waitFor({ timeout: 30000 })
     await page.screenshot({ path: join(root, 'cube-smoke.png'), fullPage: true })
     console.log('PASS: real web client pairing, terminal rendering and reload')
+    for (const width of [670, 350, 1440]) {
+      await page.setViewportSize({ width, height: 960 })
+      await page.getByRole('button', { name: /^Ports,/ }).waitFor()
+      // Cube keeps app frames mounted while hidden; allow the resize observer to fire.
+      await page.evaluate(() => { document.getElementById('root').style.display = 'none' })
+      await page.waitForTimeout(250)
+      await page.evaluate(() => { document.getElementById('root').style.display = '' })
+      await page.getByRole('button', { name: /^Ports,/ }).waitFor()
+      assert.equal(await page.getByText('The status bar hit an error.', { exact: true }).count(), 0)
+    }
+    console.log('PASS: status bar survives hiding and restoring the embedded app')
     await page
       .getByRole('button', { name: 'download-proof.bin', exact: true })
       .click({ button: 'right' })
